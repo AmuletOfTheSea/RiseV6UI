@@ -113,12 +113,16 @@ local function CreateNotificationUI(Message, Type, Duration, CustomColor)
     local NotifType = NotificationTypes[Type] or NotificationTypes.Info
     local Color = CustomColor or NotifType.Color
     
-    local Theme = Themes[Library.NotificationSystem.CurrentTheme] or Themes.Dark
+    -- BUG FIX: Themes may be nil or not have the expected key if the remote
+    -- load failed. Use Library:GetTheme() which has proper fallbacks, and
+    -- hardcode safe fallback colors so the notif always renders.
+    local BgColor  = (pcall(function() return Library:GetTheme("Background") end) and Library:GetTheme("Background")) or Color3.fromRGB(30, 30, 30)
+    local TxtColor = (pcall(function() return Library:GetTheme("Text") end)       and Library:GetTheme("Text"))       or Color3.fromRGB(255, 255, 255)
     
     local NotificationFrame = Instance.new("Frame")
     NotificationFrame.Name = "Notification"
     NotificationFrame.Size = UDim2.new(0, 300, 0, 80)
-    NotificationFrame.BackgroundColor3 = Theme.Background
+    NotificationFrame.BackgroundColor3 = BgColor
     NotificationFrame.BorderSizePixel = 0
     NotificationFrame.LayoutOrder = #Library.NotificationSystem.Notifications + 1
     NotificationFrame.Parent = Library.NotificationSystem.Container
@@ -176,7 +180,7 @@ local function CreateNotificationUI(Message, Type, Duration, CustomColor)
     MessageLabel.BackgroundTransparency = 1
     MessageLabel.Text = Message
     MessageLabel.TextSize = 14
-    MessageLabel.TextColor3 = Theme.Text
+    MessageLabel.TextColor3 = TxtColor
     MessageLabel.TextWrapped = true
     MessageLabel.TextXAlignment = Enum.TextXAlignment.Left
     MessageLabel.TextYAlignment = Enum.TextYAlignment.Center
@@ -190,7 +194,7 @@ local function CreateNotificationUI(Message, Type, Duration, CustomColor)
     CloseButton.BackgroundTransparency = 1
     CloseButton.Text = "✕"
     CloseButton.TextSize = 16
-    CloseButton.TextColor3 = Theme.Text
+    CloseButton.TextColor3 = TxtColor
     CloseButton.AutoButtonColor = false
     CloseButton.Parent = ContentContainer
     
@@ -203,16 +207,19 @@ local function CreateNotificationUI(Message, Type, Duration, CustomColor)
         CanClose = true
     }
     
+    -- BUG FIX: The original code passed UDim objects as the Y scale/offset
+    -- arguments of UDim2.new(), which is invalid. The UIListLayout handles
+    -- vertical stacking, so the Y position should always stay at 0.
     local EnterTweenInfo = TweenInfo.new(
         0.3,
         Enum.EasingStyle.Back,
         Enum.EasingDirection.Out
     )
     
-    NotificationFrame.Position = UDim2.new(1, 20, NotificationFrame.Position.Y, NotificationFrame.Position.Y.Offset)
+    NotificationFrame.Position = UDim2.fromOffset(320, 0) -- start off-screen to the right
     
     local EnterTween = TweenService:Create(NotificationFrame, EnterTweenInfo, {
-        Position = UDim2.new(1, -20, NotificationFrame.Position.Y, NotificationFrame.Position.Y.Offset)
+        Position = UDim2.fromOffset(0, 0) -- slide into resting position
     })
     EnterTween:Play()
     
@@ -228,14 +235,17 @@ local function CreateNotificationUI(Message, Type, Duration, CustomColor)
         )
         
         local ExitTween = TweenService:Create(NotificationFrame, ExitTweenInfo, {
-            Position = UDim2.new(1, 30, NotificationFrame.Position.Y, NotificationFrame.Position.Y.Offset)
+            Position = UDim2.fromOffset(320, 0) -- slide back off-screen to the right
         })
         
         ExitTween:Play()
         ExitTween.Completed:Connect(function()
-            Shadow:Destroy()
-            NotificationFrame:Destroy()
-            table.remove(Library.NotificationSystem.Notifications, table.find(Library.NotificationSystem.Notifications, State))
+            pcall(function() Shadow:Destroy() end)
+            pcall(function() NotificationFrame:Destroy() end)
+            local idx = table.find(Library.NotificationSystem.Notifications, State)
+            if idx then
+                table.remove(Library.NotificationSystem.Notifications, idx)
+            end
         end)
     end
     
@@ -250,7 +260,7 @@ local function CreateNotificationUI(Message, Type, Duration, CustomColor)
     end)
     
     CloseButton.MouseLeave:Connect(function()
-        CloseButton.TextColor3 = Theme.Text
+        CloseButton.TextColor3 = TxtColor
     end)
     
     task.delay(Duration, function()
@@ -261,8 +271,20 @@ local function CreateNotificationUI(Message, Type, Duration, CustomColor)
     
     table.insert(Library.NotificationSystem.Notifications, State)
     
+    -- BUG FIX: The original while loop called RemoveNotification() which only
+    -- removes the *current* notif's State (closure capture). We need to evict
+    -- the oldest entries from the list instead.
     while #Library.NotificationSystem.Notifications > Library.NotificationSystem.MaxNotifications do
-        RemoveNotification()
+        local Oldest = Library.NotificationSystem.Notifications[1]
+        if Oldest and not Oldest.IsLeaving then
+            Oldest.IsLeaving = true
+            Oldest.CanClose = false
+            pcall(function() Oldest.Shadow:Destroy() end)
+            pcall(function() Oldest.Frame:Destroy() end)
+            table.remove(Library.NotificationSystem.Notifications, 1)
+        else
+            break -- already leaving, don't infinite loop
+        end
     end
     
     return State
