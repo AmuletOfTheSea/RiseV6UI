@@ -1,5 +1,5 @@
 local HttpService = game:GetService("HttpService")
-local FileManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/krxtosGG/Perseus/main/Systems/FileManager.lua"))()
+local FileManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/AmuletOfTheSea/RiseV6UI/main/Systems/FileManager.lua"))()
 
 local function AssetLoader()
     local VersionPath = "Perseus/.version"
