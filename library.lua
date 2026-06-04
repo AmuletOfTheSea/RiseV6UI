@@ -16,7 +16,14 @@ local PlayerGui = Player:WaitForChild("PlayerGui")
 
 local ProtectGui = protectgui or (syn and syn.protect_gui) or function() end
 
-local OutfitFont = Assets:GetFont("Outfit-VariableFont_wght")
+local OutfitFont = (function()
+    local ok, result = pcall(function() return Assets:GetFont("Outfit-VariableFont_wght") end)
+    if ok and result and result.Family and result.Family ~= "" then
+        return result
+    end
+    -- Fallback: use a built-in Roblox font so FontFace never gets a nil/empty Family
+    return { Family = Font.fromEnum(Enum.Font.GothamMedium).Family }
+end)()
 
 local ValidGuis = {
     PerseusUI = CoreGui,
