@@ -1,8 +1,8 @@
-local Assets = loadstring(game:HttpGet("https://raw.githubusercontent.com/AmuletOfTheSea/RiseV6UI/main/Systems/AssetLoader.lua"))()
-local Themes = loadstring(game:HttpGet("https://raw.githubusercontent.com/AmuletOfTheSea/RiseV6UI/main/UI/Themes.lua"))()
-local Accents = loadstring(game:HttpGet("https://raw.githubusercontent.com/AmuletOfTheSea/RiseV6UI/main/UI/Accents.lua"))()
-local FileManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/AmuletOfTheSea/RiseV6UI/main/Systems/FileManager.lua"))()
-local ConfigSystemFactory = loadstring(game:HttpGet("https://raw.githubusercontent.com/AmuletOfTheSea/RiseV6UI/main/Systems/ConfigSystem.lua"))()
+local Assets = loadstring(game:HttpGet("https://raw.githubusercontent.com/AmuletOfTheSea/RiseB6UI/main/Systems/AssetLoader.lua"))()
+local Themes = loadstring(game:HttpGet("https://raw.githubusercontent.com/AmuletOfTheSea/RiseB6UI/main/UI/Themes.lua"))()
+local Accents = loadstring(game:HttpGet("https://raw.githubusercontent.com/AmuletOfTheSea/RiseB6UI/main/UI/Accents.lua"))()
+local FileManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/AmuletOfTheSea/RiseB6UI/main/Systems/FileManager.lua"))()
+local ConfigSystemFactory = loadstring(game:HttpGet("https://raw.githubusercontent.com/AmuletOfTheSea/RiseB6UI/main/Systems/ConfigSystem.lua"))()
 
 local CoreGui = game:GetService("CoreGui")
 local UserInputService = game:GetService("UserInputService")
@@ -784,7 +784,7 @@ function Library:CreateWindow(Options)
 
     local MainFrame = Instance.new("Frame")
     MainFrame.Name = Name
-    MainFrame.Size = UDim2.new(0, 700, 0, 520)
+    MainFrame.Size = UDim2.new(0, 700, 0, 550)
     MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
     MainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
     MainFrame.BorderSizePixel = 0
@@ -794,22 +794,22 @@ function Library:CreateWindow(Options)
     self:TrackTheme(MainFrame, "BackgroundColor3", "Background")
 
     local SizeConstraint = Instance.new("UISizeConstraint")
-    SizeConstraint.MaxSize = Vector2.new(900, 700)
-    SizeConstraint.MinSize = Vector2.new(500, 400)
+    SizeConstraint.MaxSize = Vector2.new(700, 550)
+    SizeConstraint.MinSize = Vector2.new(350, 350)
     SizeConstraint.Parent = MainFrame
 
     MakeDraggable(MainFrame, MainFrame)
 
     local Corner = Instance.new("UICorner")
-    Corner.CornerRadius = UDim.new(0, 8)
+    Corner.CornerRadius = UDim.new(0, 16)
     Corner.Parent = MainFrame
 
     AttachShadow(MainFrame, 16, 5, 12, 2.2, Color3.fromRGB(0, 0, 0), self:GetTheme("ShadowAlpha"))
 
     local TopBar = Instance.new("Frame")
     TopBar.Name = "TopBar"
-    TopBar.Size = UDim2.new(1, -190, 0, 50)
-    TopBar.Position = UDim2.new(0, 190, 0, 0)
+    TopBar.Size = UDim2.new(1, -130, 0, 40)
+    TopBar.Position = UDim2.new(0, 130, 0, 0)
     TopBar.BackgroundTransparency = 1
     TopBar.BorderSizePixel = 0
     TopBar.ZIndex = 2
@@ -836,7 +836,7 @@ function Library:CreateWindow(Options)
 
     local SideBar = Instance.new("Frame")
     SideBar.Name = "SideBar"
-    SideBar.Size = UDim2.new(0, 180, 1, 0)
+    SideBar.Size = UDim2.new(0, 140, 1, 0)
     SideBar.Position = UDim2.new(0, 0, 0, 0)
     SideBar.BorderSizePixel = 0
     SideBar.Parent = MainFrame
@@ -844,7 +844,7 @@ function Library:CreateWindow(Options)
     self:TrackTheme(SideBar, "BackgroundColor3", "SideBar")
 
     local SideCorner = Instance.new("UICorner")
-    SideCorner.CornerRadius = UDim.new(0, 8)
+    SideCorner.CornerRadius = UDim.new(0, 16)
     SideCorner.Parent = SideBar
 
     local SideMask = Instance.new("Frame")
@@ -959,8 +959,8 @@ function Library:AddTab(Window, Config)
 
     local Content = Instance.new("ScrollingFrame")
     Content.Name = TabName .. "_Content"
-    Content.Size = UDim2.new(1, -190, 1, -50)
-    Content.Position = UDim2.new(0, 190, 0, 50)
+    Content.Size = UDim2.new(1, -130, 1, -40)
+    Content.Position = UDim2.new(0, 130, 0, 40)
     Content.BackgroundTransparency = 1
     Content.Visible = false
     Content.Parent = Window.MainFrame
