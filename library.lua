@@ -1,5 +1,3 @@
--- Updated sum bs this is NOT the original
-
 local Assets = loadstring(game:HttpGet("https://raw.githubusercontent.com/AmuletOfTheSea/RiseV6UI/main/Systems/AssetLoader.lua"))()
 local Themes = loadstring(game:HttpGet("https://raw.githubusercontent.com/AmuletOfTheSea/RiseV6UI/main/UI/Themes.lua"))()
 local Accents = loadstring(game:HttpGet("https://raw.githubusercontent.com/AmuletOfTheSea/RiseV6UI/main/UI/Accents.lua"))()
@@ -806,7 +804,7 @@ function Library:CreateWindow(Options)
     Corner.CornerRadius = UDim.new(0, 8)
     Corner.Parent = MainFrame
 
-    AttachShadow(MainFrame, 8, 5, 12, 2.2, Color3.fromRGB(0, 0, 0), self:GetTheme("ShadowAlpha"))
+    AttachShadow(MainFrame, 16, 5, 12, 2.2, Color3.fromRGB(0, 0, 0), self:GetTheme("ShadowAlpha"))
 
     local TopBar = Instance.new("Frame")
     TopBar.Name = "TopBar"
@@ -822,7 +820,7 @@ function Library:CreateWindow(Options)
     TabTitle.Size = UDim2.new(1, 0, 1, 0)
     TabTitle.Position = UDim2.new(0, 0, 0, 0)
     TabTitle.BackgroundTransparency = 1
-    TabTitle.TextSize = 28
+    TabTitle.TextSize = 24
     TabTitle.ZIndex = 2
     TabTitle.TextXAlignment = Enum.TextXAlignment.Left
     TabTitle.Parent = TopBar
@@ -832,8 +830,8 @@ function Library:CreateWindow(Options)
     TabTitle.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal)
 
     local Padding = Instance.new("UIPadding")
-    Padding.PaddingLeft = UDim.new(0, 20)
-    Padding.PaddingTop = UDim.new(0, 10)
+    Padding.PaddingLeft = UDim.new(0, 12)
+    Padding.PaddingTop = UDim.new(0, 8)
     Padding.Parent = TabTitle
 
     local SideBar = Instance.new("Frame")
@@ -859,11 +857,11 @@ function Library:CreateWindow(Options)
 
     local TitleHolder = Instance.new("TextLabel")
     TitleHolder.Name = "TitleHolder"
-    TitleHolder.Size = UDim2.new(1, -20, 0, 40)
-    TitleHolder.Position = UDim2.new(0, 10, 0, 12)
+    TitleHolder.Size = UDim2.new(1, -16, 0, 36)
+    TitleHolder.Position = UDim2.new(0, 4, 0, 8)
     TitleHolder.BackgroundTransparency = 1
     TitleHolder.Text = Name
-    TitleHolder.TextSize = 24
+    TitleHolder.TextSize = 30
     TitleHolder.Parent = SideBar
     TitleHolder.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal)
 
@@ -873,8 +871,8 @@ function Library:CreateWindow(Options)
 
     local TabHolder = Instance.new("Frame")
     TabHolder.Name = "TabHolder"
-    TabHolder.Size = UDim2.new(1, -20, 1, -60)
-    TabHolder.Position = UDim2.new(0, 10, 0, 55)
+    TabHolder.Size = UDim2.new(1, -24, 1, -40)
+    TabHolder.Position = UDim2.new(0, 16, 0, 40)
     TabHolder.BackgroundTransparency = 1
     TabHolder.BorderSizePixel = 0
     TabHolder.Parent = SideBar
@@ -882,7 +880,7 @@ function Library:CreateWindow(Options)
     local Layout = Instance.new("UIListLayout")
     Layout.FillDirection = Enum.FillDirection.Vertical
     Layout.SortOrder = Enum.SortOrder.LayoutOrder
-    Layout.Padding = UDim.new(0, 4)
+    Layout.Padding = UDim.new(0, 0)
     Layout.Parent = TabHolder
 
     Window.MainFrame = MainFrame
@@ -914,11 +912,7 @@ function Library:AddTab(Window, Config)
 
     local Button = Instance.new("TextButton")
     Button.Name = TabName
-    Button.Size = UDim2.new(0, 0, 0, 38)
-    Button.Text = ""
-    Button.BackgroundTransparency = 1
-    Button.ZIndex = 1
-    Button.AutomaticSize = Enum.AutomaticSize.X
+    Button.Size = UDim2.new(0, 0, 0, 40)
     Button.Text = ""
     Button.BackgroundTransparency = 1
     Button.ZIndex = 1
@@ -939,7 +933,7 @@ function Library:AddTab(Window, Config)
     Label.Size = UDim2.new(0, 0, 1, 0)
     Label.BackgroundTransparency = 1
     Label.Text = TabName
-    Label.TextSize = 16
+    Label.TextSize = 18
     Label.ZIndex = 4
     Label.TextXAlignment = Enum.TextXAlignment.Left
     Label.AutomaticSize = Enum.AutomaticSize.X
@@ -980,7 +974,7 @@ function Library:AddTab(Window, Config)
     local Layout = Instance.new("UIListLayout")
     Layout.FillDirection = Enum.FillDirection.Vertical
     Layout.SortOrder = Enum.SortOrder.LayoutOrder
-    Layout.Padding = UDim.new(0, 12)
+    Layout.Padding = UDim.new(0, 4)
     Layout.Parent = Content
 
     local function UpdateCanvas()
@@ -1000,10 +994,8 @@ function Library:AddTab(Window, Config)
     Content:GetPropertyChangedSignal("AbsoluteSize"):Connect(UpdateCanvas)
 
     local LayoutPadding = Instance.new("UIPadding")
-    LayoutPadding.PaddingLeft = UDim.new(0, 16)
-    LayoutPadding.PaddingRight = UDim.new(0, 16)
-    LayoutPadding.PaddingTop = UDim.new(0, 16)
-    LayoutPadding.PaddingBottom = UDim.new(0, 16)
+    LayoutPadding.PaddingLeft = UDim.new(0, 8)
+    LayoutPadding.PaddingTop = UDim.new(0, 10)
     LayoutPadding.Parent = Content
 
     if not Window.TabSelector then
@@ -1020,7 +1012,7 @@ function Library:AddTab(Window, Config)
         self:TrackAccent(Shadow, nil, "Accent")
 
         local Corner = Instance.new("UICorner")
-        Corner.CornerRadius = UDim.new(0, 6)
+        Corner.CornerRadius = UDim.new(0, 10)
         Corner.Parent = Selector
 
         Window.TabSelector = Selector
@@ -1134,7 +1126,7 @@ function Library:AddTab(Window, Config)
                 PreviousTab.Content,
                 TweenInfo.new(0.18, Enum.EasingStyle.Quart, Enum.EasingDirection.In),
                 {
-                    Position = UDim2.new(0, 190, 0, -50)
+                    Position = UDim2.new(0, 130, 0, -40)
                 }
             )
 
@@ -1147,14 +1139,14 @@ function Library:AddTab(Window, Config)
 
         Content.Visible = true
         Content.Active = true
-        Content.Position = UDim2.new(0, 190, 0, 90)
+        Content.Position = UDim2.new(0, 130, 0, 80)
         Content.CanvasPosition = Vector2.new(0, 0)
 
         local EnterContentTween = TweenService:Create(
             Content,
             TweenInfo.new(0.26, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
             {
-                Position = UDim2.new(0, 190, 0, 50)
+                Position = UDim2.new(0, 130, 0, 40)
             }
         )
 
@@ -1165,7 +1157,7 @@ function Library:AddTab(Window, Config)
             Content,
             TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
             {
-                Position = UDim2.new(0, 190, 0, 50)
+                Position = UDim2.new(0, 130, 0, 40)
             }
         ):Play()
 
@@ -1886,7 +1878,7 @@ function Library:AddAccents(Tab, Config)
     Config = Config or {}
 
     local Holder = Instance.new("Frame")
-    Holder.Size = UDim2.new(1, -16, 0, 160)
+    Holder.Size = UDim2.new(1, -8, 0, 110)
     Holder.BackgroundTransparency = 0
     Holder.BorderSizePixel = 0
     Holder.Parent = Tab.Content
@@ -1894,12 +1886,12 @@ function Library:AddAccents(Tab, Config)
     self:TrackTheme(Holder, "BackgroundColor3", "SideBar")
 
     local Corner = Instance.new("UICorner")
-    Corner.CornerRadius = UDim.new(0, 8)
+    Corner.CornerRadius = UDim.new(0, 10)
     Corner.Parent = Holder
 
     local Title = Instance.new("TextLabel")
-    Title.Size = UDim2.new(1, -12, 0, 24)
-    Title.Position = UDim2.new(0, 12, 0, 8)
+    Title.Size = UDim2.new(1, -12, 0, 20)
+    Title.Position = UDim2.new(0, 6, 0, 4)
     Title.BackgroundTransparency = 1
     Title.Text = "Accents"
     Title.TextSize = 18
@@ -1910,14 +1902,14 @@ function Library:AddAccents(Tab, Config)
     self:TrackTheme(Title, "TextColor3", "Text")
 
     local Container = Instance.new("Frame")
-    Container.Size = UDim2.new(1, -20, 0, 120)
-    Container.Position = UDim2.new(0, 10, 0, 38)
+    Container.Size = UDim2.new(1, -12, 0, 80)
+    Container.Position = UDim2.new(0, 6, 0, 26)
     Container.BackgroundTransparency = 1
     Container.Parent = Holder
 
     local Layout = Instance.new("UIGridLayout")
-    Layout.CellSize = UDim2.new(0.25, -8, 0, 40)
-    Layout.CellPadding = UDim2.new(0, 8, 0, 8)
+    Layout.CellSize = UDim2.new(0.25, -6, 0, 32)
+    Layout.CellPadding = UDim2.new(0, 6, 0, 6)
     Layout.Parent = Container
 
     local AccentKeys = {}
@@ -1936,7 +1928,7 @@ function Library:AddAccents(Tab, Config)
         Button.Parent = Container
 
         local Corner = Instance.new("UICorner")
-        Corner.CornerRadius = UDim.new(0, 6)
+        Corner.CornerRadius = UDim.new(0, 8)
         Corner.Parent = Button
 
         local Clip = Instance.new("Frame")
@@ -1946,26 +1938,27 @@ function Library:AddAccents(Tab, Config)
         Clip.Parent = Button
 
         local ClipCorner = Instance.new("UICorner")
-        ClipCorner.CornerRadius = UDim.new(0, 6)
+        ClipCorner.CornerRadius = UDim.new(0, 8)
         ClipCorner.Parent = Clip
 
         local Label = Instance.new("TextLabel")
-        Label.Size = UDim2.new(1, 0, 1, 0)
-        Label.Position = UDim2.new(0, 0, 0, 0)
-        Label.BackgroundTransparency = 0.8
-        Label.TextTransparency = 0.5
+        Label.Size = UDim2.new(1, 0, 0.35, 0)
+        Label.Position = UDim2.new(0, 0, 1, 0)
+        Label.BackgroundTransparency = 1
+        Label.TextTransparency = 1
         Label.BackgroundColor3 = Color3.new(0,0,0)
         Label.Text = Name
         Label.TextScaled = true
         Label.BorderSizePixel = 0
         Label.TextColor3 = Color3.new(1,1,1)
-        Label.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
+        Label.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal)
         Label.Parent = Clip
 
         local function Hover(state)
             TweenService:Create(Label, TweenInfo.new(0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
-                BackgroundTransparency = state and 0.3 or 0.8,
-                TextTransparency = state and 0 or 0.5
+                Position = state and UDim2.new(0,0,0.65,0) or UDim2.new(0,0,1,0),
+                BackgroundTransparency = state and 0.3 or 1,
+                TextTransparency = state and 0 or 1
             }):Play()
         end
 
