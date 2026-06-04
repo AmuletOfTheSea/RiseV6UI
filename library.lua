@@ -113,11 +113,14 @@ local function CreateNotificationUI(Message, Type, Duration, CustomColor)
     local NotifType = NotificationTypes[Type] or NotificationTypes.Info
     local Color = CustomColor or NotifType.Color
     
-    -- BUG FIX: Themes may be nil or not have the expected key if the remote
-    -- load failed. Use Library:GetTheme() which has proper fallbacks, and
-    -- hardcode safe fallback colors so the notif always renders.
-    local BgColor  = (pcall(function() return Library:GetTheme("Background") end) and Library:GetTheme("Background")) or Color3.fromRGB(30, 30, 30)
-    local TxtColor = (pcall(function() return Library:GetTheme("Text") end)       and Library:GetTheme("Text"))       or Color3.fromRGB(255, 255, 255)
+    -- BUG FIX: Themes may be nil/broken if the remote load failed. Safely
+    -- grab theme colors with pcall and fall back to hardcoded values so the
+    -- notif always renders text regardless of theme system state.
+    local _bgOk, BgColor  = pcall(function() return Library:GetTheme("Background") end)
+    if not _bgOk or type(BgColor) ~= "userdata" then BgColor = Color3.fromRGB(30, 30, 30) end
+
+    local _txtOk, TxtColor = pcall(function() return Library:GetTheme("Text") end)
+    if not _txtOk or type(TxtColor) ~= "userdata" then TxtColor = Color3.fromRGB(255, 255, 255) end
     
     local NotificationFrame = Instance.new("Frame")
     NotificationFrame.Name = "Notification"
@@ -184,7 +187,8 @@ local function CreateNotificationUI(Message, Type, Duration, CustomColor)
     MessageLabel.TextWrapped = true
     MessageLabel.TextXAlignment = Enum.TextXAlignment.Left
     MessageLabel.TextYAlignment = Enum.TextYAlignment.Center
-    MessageLabel.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Medium, Enum.FontStyle.Normal)
+    local _fontOk = pcall(function() MessageLabel.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Medium, Enum.FontStyle.Normal) end)
+    if not _fontOk then MessageLabel.Font = Enum.Font.GothamMedium end
     MessageLabel.Parent = ContentContainer
     
     local CloseButton = Instance.new("TextButton")
@@ -1113,7 +1117,7 @@ function Library:CreateWindow(Options)
 
     self:TrackTheme(TabTitle, "TextColor3", "Text")
 
-    TabTitle.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal)
+    pcall(function() TabTitle.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal) end)
 
     local Padding = Instance.new("UIPadding")
     Padding.PaddingLeft = UDim.new(0, 12)
@@ -1149,7 +1153,7 @@ function Library:CreateWindow(Options)
     TitleHolder.Text = Name
     TitleHolder.TextSize = 30
     TitleHolder.Parent = SideBar
-    TitleHolder.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal)
+    pcall(function() TitleHolder.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal) end)
 
     self:TrackTheme(TitleHolder, "TextColor3", "Text")
 
@@ -1223,7 +1227,7 @@ function Library:AddTab(Window, Config)
     Label.ZIndex = 4
     Label.TextXAlignment = Enum.TextXAlignment.Left
     Label.AutomaticSize = Enum.AutomaticSize.X
-    Label.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal)
+    pcall(function() Label.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal) end)
     Label.Parent = Button
 
     self:TrackTheme(Label, "TextColor3", "Text")
@@ -1551,7 +1555,7 @@ function Library:AddModule(Tab, Config)
     Label.TextSize = 20
     Label.TextXAlignment = Enum.TextXAlignment.Left
     Label.AutomaticSize = Enum.AutomaticSize.X
-    Label.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal)
+    pcall(function() Label.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal) end)
     Label.Parent = Button
 
     Library:TrackTheme(Label, "TextColor3", "Text")
@@ -1660,7 +1664,7 @@ function Library:AddModule(Tab, Config)
         ToolTipLabel.Size = UDim2.new(0, 0, 0, 40)
         ToolTipLabel.AutomaticSize = Enum.AutomaticSize.X
         ToolTipLabel.Parent = Holder
-        ToolTipLabel.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal)
+        pcall(function() ToolTipLabel.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal) end)
 
         self:TrackTheme(ToolTipLabel, "TextColor3", "Text")
 
@@ -1747,7 +1751,7 @@ function Library:AddParagraph(Tab, Config)
     Label.TextSize = 16
     Label.TextXAlignment = Enum.TextXAlignment.Left
     Label.TextYAlignment = Enum.TextYAlignment.Top
-    Label.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+    pcall(function() Label.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Regular, Enum.FontStyle.Normal) end)
     Label.Parent = Holder
 
     self:TrackTheme(Label, "TextColor3", "Text")
@@ -1890,7 +1894,7 @@ function Library:AddRadar(Tab, Config)
     RangeLabel.TextSize = 12
     RangeLabel.TextTransparency = 0.3
     RangeLabel.TextXAlignment = Enum.TextXAlignment.Right
-    RangeLabel.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal)
+    pcall(function() RangeLabel.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal) end)
     RangeLabel.ZIndex = 10
     RangeLabel.Parent = RadarFrame
     self:TrackTheme(RangeLabel, "TextColor3", "Text")
@@ -1922,7 +1926,7 @@ function Library:AddRadar(Tab, Config)
         NameLabel.TextSize = 12
         NameLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
         NameLabel.TextXAlignment = Enum.TextXAlignment.Left
-        NameLabel.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal)
+        pcall(function() NameLabel.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal) end)
         NameLabel.ZIndex = 9
         NameLabel.Parent = DotFrame
 
@@ -2093,7 +2097,7 @@ function Library:AddThemes(Tab, Config)
     Title.Text = "Themes"
     Title.TextSize = 18
     Title.TextXAlignment = Enum.TextXAlignment.Left
-    Title.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal)
+    pcall(function() Title.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal) end)
     Title.Parent = Holder
 
     self:TrackTheme(Title, "TextColor3", "Text")
@@ -2137,7 +2141,7 @@ function Library:AddThemes(Tab, Config)
         Label.TextScaled = true
         Label.BorderSizePixel = 0
         Label.TextColor3 = Color3.new(1,1,1)
-        Label.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal)
+        pcall(function() Label.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal) end)
         Label.Parent = Clip
 
         local function Hover(state)
@@ -2182,7 +2186,7 @@ function Library:AddAccents(Tab, Config)
     Title.Text = "Accents"
     Title.TextSize = 18
     Title.TextXAlignment = Enum.TextXAlignment.Left
-    Title.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal)
+    pcall(function() Title.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal) end)
     Title.Parent = Holder
 
     self:TrackTheme(Title, "TextColor3", "Text")
@@ -2237,7 +2241,7 @@ function Library:AddAccents(Tab, Config)
         Label.TextScaled = true
         Label.BorderSizePixel = 0
         Label.TextColor3 = Color3.new(1,1,1)
-        Label.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal)
+        pcall(function() Label.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal) end)
         Label.Parent = Clip
 
         local function Hover(state)
@@ -2285,7 +2289,7 @@ function Library:AddConfig(Tab, ConfigSystem)
     Input.BackgroundTransparency = 0
     Input.BorderSizePixel = 0
     Input.TextSize = 16
-    Input.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal)
+    pcall(function() Input.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal) end)
     Input.Parent = Holder
 
     self:TrackTheme(Input, "BackgroundColor3", "Background")
@@ -2301,7 +2305,7 @@ function Library:AddConfig(Tab, ConfigSystem)
     Save.Text = "Save Config"
     Save.BorderSizePixel = 0
     Save.TextSize = 16
-    Save.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal)
+    pcall(function() Save.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal) end)
     Save.Parent = Holder
 
     self:TrackAccent(Save, "BackgroundColor3", "Accent")
@@ -2404,7 +2408,7 @@ function Library:AddConfig(Tab, ConfigSystem)
         Label.Text = CleanName
         Label.TextXAlignment = Enum.TextXAlignment.Left
         Label.TextSize = 16
-        Label.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal)
+        pcall(function() Label.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal) end)
         Label.Parent = Item
 
         Labels[CleanName] = Label
@@ -2419,7 +2423,7 @@ function Library:AddConfig(Tab, ConfigSystem)
             Desc.TextSize = 14
             Desc.TextXAlignment = Enum.TextXAlignment.Left
             Desc.TextTransparency = 0.2
-            Desc.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal)
+            pcall(function() Desc.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal) end)
             Desc.Parent = Item
 
             self:TrackTheme(Desc, "TextColor3", "Text")
@@ -2543,7 +2547,7 @@ function Library:AddLabel(Module, Config)
     Label.TextSize = 16
     Label.TextXAlignment = Enum.TextXAlignment.Left
     Label.Parent = Module.Container
-    Label.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal)
+    pcall(function() Label.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal) end)
 
     Library:TrackTheme(Label, "TextColor3", "Text")
 
@@ -2594,7 +2598,7 @@ function Library:AddToggle(Module, Config)
     Label.TextXAlignment = Enum.TextXAlignment.Left
     Label.AutoButtonColor = false
     Label.Parent = Wrapper
-    Label.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal)
+    pcall(function() Label.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal) end)
 
     Library:TrackTheme(Label, "TextColor3", "Text")
 
@@ -2783,7 +2787,7 @@ function Library:AddSlider(Module, Config)
     TextLabel.Text = Text
     TextLabel.TextSize = 16
     TextLabel.TextXAlignment = Enum.TextXAlignment.Left
-    TextLabel.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal)
+    pcall(function() TextLabel.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal) end)
     TextLabel.LayoutOrder = 1
     TextLabel.Parent = RowFrame
 
@@ -2865,7 +2869,7 @@ function Library:AddSlider(Module, Config)
     ValueLabel.BackgroundTransparency = 1
     ValueLabel.TextSize = 16
     ValueLabel.TextXAlignment = Enum.TextXAlignment.Right
-    ValueLabel.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal)
+    pcall(function() ValueLabel.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal) end)
     ValueLabel.LayoutOrder = 3
     ValueLabel.Parent = RowFrame
 
@@ -3047,7 +3051,7 @@ function Library:AddCarousel(Module, Config)
     ValueLabel.Text = BuildDisplayText(Values[CurrentIndex])
     ValueLabel.TextSize = 16
     ValueLabel.TextXAlignment = Enum.TextXAlignment.Left
-    ValueLabel.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal)
+    pcall(function() ValueLabel.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal) end)
     ValueLabel.Parent = MainContainer
 
     Library:TrackTheme(ValueLabel, "TextColor3", "Text")
