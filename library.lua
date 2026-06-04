@@ -268,10 +268,10 @@ function Library:Notify(Message, Type, Duration, CustomColor)
         if not self.NotificationSystem.Container then
             self.NotificationSystem.Container = Instance.new("Frame")
             self.NotificationSystem.Container.Name = "NotificationStack"
-            self.NotificationSystem.Container.Size = UDim2.new(0, 320, 1, 0)
-            self.NotificationSystem.Container.Position = UDim2.new(1, -20, 0, 20)
+            self.NotificationSystem.Container.Size = UDim2.new(0, 320, 1, -40)
+            self.NotificationSystem.Container.Position = UDim2.new(1, -340, 0, 20)
             self.NotificationSystem.Container.BackgroundTransparency = 1
-            self.NotificationSystem.Container.AnchorPoint = Vector2.new(1, 0)
+            self.NotificationSystem.Container.AnchorPoint = Vector2.new(0, 0)
             self.NotificationSystem.Container.Parent = ScreenGuis.NotificationContainer
             
             local ListLayout = Instance.new("UIListLayout")
