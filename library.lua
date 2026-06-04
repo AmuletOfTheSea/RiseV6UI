@@ -211,73 +211,14 @@ local function CreateNotificationUI(Message, Type, Duration, CustomColor)
         CanClose = true
     }
     
-    -- BUG FIX: The original code passed UDim objects as the Y scale/offset
-    -- arguments of UDim2.new(), which is invalid. The UIListLayout handles
-    -- vertical stacking, so the Y position should always stay at 0.
-    -- Fade in: UIListLayout controls position so we tween transparency instead
-    NotificationFrame.BackgroundTransparency = 1
-    ContentContainer.BackgroundTransparency = 1
-    for _, child in ipairs(ContentContainer:GetChildren()) do
-        pcall(function() child.BackgroundTransparency = 1 end)
-        pcall(function() child.TextTransparency = 1 end)
-        pcall(function() child.ImageTransparency = 1 end)
-    end
-    AccentBar.BackgroundTransparency = 1
-    Shadow.BackgroundTransparency = 1
-
-    local FadeIn = TweenService:Create(NotificationFrame,
-        TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-        { BackgroundTransparency = 0 })
-    local FadeInAccent = TweenService:Create(AccentBar,
-        TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-        { BackgroundTransparency = 0 })
-    local FadeInShadow = TweenService:Create(Shadow,
-        TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-        { BackgroundTransparency = 0.7 })
-    local FadeInIcon = TweenService:Create(IconLabel,
-        TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-        { TextTransparency = 0 })
-    local FadeInMsg = TweenService:Create(MessageLabel,
-        TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-        { TextTransparency = 0 })
-    local FadeInClose = TweenService:Create(CloseButton,
-        TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-        { TextTransparency = 0 })
-    FadeIn:Play() FadeInAccent:Play() FadeInShadow:Play()
-    FadeInIcon:Play() FadeInMsg:Play() FadeInClose:Play()
-
     local function RemoveNotification()
         if State.IsLeaving then return end
         State.IsLeaving = true
         State.CanClose = false
-
-        local FadeOut = TweenService:Create(NotificationFrame,
-            TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
-            { BackgroundTransparency = 1 })
-        local FadeOutAccent = TweenService:Create(AccentBar,
-            TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
-            { BackgroundTransparency = 1 })
-        local FadeOutShadow = TweenService:Create(Shadow,
-            TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
-            { BackgroundTransparency = 1 })
-        local FadeOutIcon = TweenService:Create(IconLabel,
-            TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
-            { TextTransparency = 1 })
-        local FadeOutMsg = TweenService:Create(MessageLabel,
-            TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
-            { TextTransparency = 1 })
-        local FadeOutClose = TweenService:Create(CloseButton,
-            TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
-            { TextTransparency = 1 })
-        FadeOutAccent:Play() FadeOutShadow:Play()
-        FadeOutIcon:Play() FadeOutMsg:Play() FadeOutClose:Play()
-        FadeOut:Play()
-        FadeOut.Completed:Connect(function()
-            pcall(function() Shadow:Destroy() end)
-            pcall(function() NotificationFrame:Destroy() end)
-            local idx = table.find(Library.NotificationSystem.Notifications, State)
-            if idx then table.remove(Library.NotificationSystem.Notifications, idx) end
-        end)
+        pcall(function() Shadow:Destroy() end)
+        pcall(function() NotificationFrame:Destroy() end)
+        local idx = table.find(Library.NotificationSystem.Notifications, State)
+        if idx then table.remove(Library.NotificationSystem.Notifications, idx) end
     end
     
     CloseButton.MouseButton1Click:Connect(function()
