@@ -23,6 +23,7 @@ local ValidGuis = {
     MouseUnlockerUI = PlayerGui,
     PerseusMouseUI = CoreGui,
     PerseusHUD = CoreGui,
+    NotificationContainer = CoreGui,
 }
 local GuiConfigs = {
     PerseusUI = {},
@@ -43,6 +44,13 @@ local GuiConfigs = {
     },
 
     PerseusHUD = {},
+
+    NotificationContainer = {
+        ResetOnSpawn = false,
+        IgnoreGuiInset = true,
+        DisplayOrder = 1000,
+        ZIndexBehavior = Enum.ZIndexBehavior.Global
+    },
 }
 local ScreenGuis = {}
 
@@ -62,6 +70,254 @@ local Library = {
     Labels = {},
     Toggles = {}
 }
+
+
+local NotificationTypes = {
+    Info = {
+        Color = Color3.fromRGB(59, 130, 246),
+        Icon = "ℹ"
+    },
+    Success = {
+        Color = Color3.fromRGB(34, 197, 94),
+        Icon = "✓"
+    },
+    Warning = {
+        Color = Color3.fromRGB(249, 115, 22),
+        Icon = "⚠"
+    },
+    Error = {
+        Color = Color3.fromRGB(239, 68, 68),
+        Icon = "X"
+    }
+}
+
+Library.NotificationSystem = {
+    Notifications = {},
+    Container = nil,
+    MaxNotifications = 5,
+    CurrentTheme = "Dark",
+    CurrentAccent = "Blue"
+}
+
+local function CreateNotificationUI(Message, Type, Duration, CustomColor)
+    Type = Type or "Info"
+    Duration = Duration or 5
+    
+    local NotifType = NotificationTypes[Type] or NotificationTypes.Info
+    local Color = CustomColor or NotifType.Color
+    
+    local Theme = Themes[Library.NotificationSystem.CurrentTheme] or Themes.Dark
+    
+    local NotificationFrame = Instance.new("Frame")
+    NotificationFrame.Name = "Notification"
+    NotificationFrame.Size = UDim2.new(0, 300, 0, 80)
+    NotificationFrame.BackgroundColor3 = Theme.Background
+    NotificationFrame.BorderSizePixel = 0
+    NotificationFrame.LayoutOrder = #Library.NotificationSystem.Notifications + 1
+    NotificationFrame.Parent = Library.NotificationSystem.Container
+    
+    local Corner = Instance.new("UICorner")
+    Corner.CornerRadius = UDim.new(0, 8)
+    Corner.Parent = NotificationFrame
+    
+    local AccentBar = Instance.new("Frame")
+    AccentBar.Name = "AccentBar"
+    AccentBar.Size = UDim2.new(0, 4, 1, 0)
+    AccentBar.BackgroundColor3 = Color
+    AccentBar.BorderSizePixel = 0
+    AccentBar.Parent = NotificationFrame
+    
+    local AccentCorner = Instance.new("UICorner")
+    AccentCorner.CornerRadius = UDim.new(0, 8)
+    AccentCorner.Parent = AccentBar
+    
+    local Shadow = Instance.new("Frame")
+    Shadow.Name = "Shadow"
+    Shadow.Size = UDim2.new(1, 8, 1, 8)
+    Shadow.Position = UDim2.new(0, -4, 0, 4)
+    Shadow.BackgroundColor3 = Color3.new(0, 0, 0)
+    Shadow.BackgroundTransparency = 0.7
+    Shadow.BorderSizePixel = 0
+    Shadow.ZIndex = NotificationFrame.ZIndex - 1
+    Shadow.Parent = NotificationFrame.Parent
+    
+    local ShadowCorner = Instance.new("UICorner")
+    ShadowCorner.CornerRadius = UDim.new(0, 8)
+    ShadowCorner.Parent = Shadow
+    
+    local ContentContainer = Instance.new("Frame")
+    ContentContainer.Size = UDim2.new(1, -10, 1, 0)
+    ContentContainer.Position = UDim2.new(0, 10, 0, 0)
+    ContentContainer.BackgroundTransparency = 1
+    ContentContainer.Parent = NotificationFrame
+    
+    local IconLabel = Instance.new("TextLabel")
+    IconLabel.Name = "Icon"
+    IconLabel.Size = UDim2.new(0, 30, 0, 30)
+    IconLabel.Position = UDim2.new(0, 0, 0.5, -15)
+    IconLabel.BackgroundTransparency = 1
+    IconLabel.Text = NotifType.Icon
+    IconLabel.TextSize = 20
+    IconLabel.TextColor3 = Color
+    IconLabel.Font = Enum.Font.GothamBold
+    IconLabel.Parent = ContentContainer
+    
+    local MessageLabel = Instance.new("TextLabel")
+    MessageLabel.Name = "Message"
+    MessageLabel.Size = UDim2.new(1, -45, 1, 0)
+    MessageLabel.Position = UDim2.new(0, 35, 0, 0)
+    MessageLabel.BackgroundTransparency = 1
+    MessageLabel.Text = Message
+    MessageLabel.TextSize = 14
+    MessageLabel.TextColor3 = Theme.Text
+    MessageLabel.TextWrapped = true
+    MessageLabel.TextXAlignment = Enum.TextXAlignment.Left
+    MessageLabel.TextYAlignment = Enum.TextYAlignment.Center
+    MessageLabel.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Medium, Enum.FontStyle.Normal)
+    MessageLabel.Parent = ContentContainer
+    
+    local CloseButton = Instance.new("TextButton")
+    CloseButton.Name = "CloseButton"
+    CloseButton.Size = UDim2.new(0, 25, 0, 25)
+    CloseButton.Position = UDim2.new(1, -30, 0.5, -12)
+    CloseButton.BackgroundTransparency = 1
+    CloseButton.Text = "✕"
+    CloseButton.TextSize = 16
+    CloseButton.TextColor3 = Theme.Text
+    CloseButton.AutoButtonColor = false
+    CloseButton.Parent = ContentContainer
+    
+    local State = {
+        Frame = NotificationFrame,
+        Shadow = Shadow,
+        Duration = Duration,
+        StartTime = tick(),
+        IsLeaving = false,
+        CanClose = true
+    }
+    
+    local EnterTweenInfo = TweenInfo.new(
+        0.3,
+        Enum.EasingStyle.Back,
+        Enum.EasingDirection.Out
+    )
+    
+    NotificationFrame.Position = UDim2.new(1, 20, NotificationFrame.Position.Y, NotificationFrame.Position.Y.Offset)
+    
+    local EnterTween = TweenService:Create(NotificationFrame, EnterTweenInfo, {
+        Position = UDim2.new(1, -20, NotificationFrame.Position.Y, NotificationFrame.Position.Y.Offset)
+    })
+    EnterTween:Play()
+    
+    local function RemoveNotification()
+        if State.IsLeaving then return end
+        State.IsLeaving = true
+        State.CanClose = false
+        
+        local ExitTweenInfo = TweenInfo.new(
+            0.25,
+            Enum.EasingStyle.Sine,
+            Enum.EasingDirection.In
+        )
+        
+        local ExitTween = TweenService:Create(NotificationFrame, ExitTweenInfo, {
+            Position = UDim2.new(1, 30, NotificationFrame.Position.Y, NotificationFrame.Position.Y.Offset)
+        })
+        
+        ExitTween:Play()
+        ExitTween.Completed:Connect(function()
+            Shadow:Destroy()
+            NotificationFrame:Destroy()
+            table.remove(Library.NotificationSystem.Notifications, table.find(Library.NotificationSystem.Notifications, State))
+        end)
+    end
+    
+    CloseButton.MouseButton1Click:Connect(function()
+        if State.CanClose then
+            RemoveNotification()
+        end
+    end)
+    
+    CloseButton.MouseEnter:Connect(function()
+        CloseButton.TextColor3 = Color
+    end)
+    
+    CloseButton.MouseLeave:Connect(function()
+        CloseButton.TextColor3 = Theme.Text
+    end)
+    
+    task.delay(Duration, function()
+        if not State.IsLeaving and State.CanClose then
+            RemoveNotification()
+        end
+    end)
+    
+    table.insert(Library.NotificationSystem.Notifications, State)
+    
+    while #Library.NotificationSystem.Notifications > Library.NotificationSystem.MaxNotifications do
+        RemoveNotification()
+    end
+    
+    return State
+end
+
+function Library:Notify(Message, Type, Duration, CustomColor)
+    if not self.NotificationSystem.Container then
+        self.NotificationSystem.Container = ScreenGuis.NotificationContainer:FindFirstChild("NotificationStack")
+        if not self.NotificationSystem.Container then
+            self.NotificationSystem.Container = Instance.new("Frame")
+            self.NotificationSystem.Container.Name = "NotificationStack"
+            self.NotificationSystem.Container.Size = UDim2.new(0, 320, 1, 0)
+            self.NotificationSystem.Container.Position = UDim2.new(1, -20, 0, 20)
+            self.NotificationSystem.Container.BackgroundTransparency = 1
+            self.NotificationSystem.Container.AnchorPoint = Vector2.new(1, 0)
+            self.NotificationSystem.Container.Parent = ScreenGuis.NotificationContainer
+            
+            local ListLayout = Instance.new("UIListLayout")
+            ListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+            ListLayout.Padding = UDim.new(0, 8)
+            ListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
+            ListLayout.VerticalAlignment = Enum.VerticalAlignment.Top
+            ListLayout.Parent = self.NotificationSystem.Container
+        end
+    end
+    
+    return CreateNotificationUI(Message, Type, Duration, CustomColor)
+end
+
+function Library:Success(Message, Duration)
+    return self:Notify(Message, "Success", Duration or 4)
+end
+
+function Library:Error(Message, Duration)
+    return self:Notify(Message, "Error", Duration or 5)
+end
+
+function Library:Warning(Message, Duration)
+    return self:Notify(Message, "Warning", Duration or 4.5)
+end
+
+function Library:Info(Message, Duration)
+    return self:Notify(Message, "Info", Duration or 3)
+end
+
+function Library:SetNotificationTheme(ThemeName)
+    self.NotificationSystem.CurrentTheme = ThemeName
+end
+
+function Library:SetNotificationMaxNotifications(Max)
+    self.NotificationSystem.MaxNotifications = Max
+end
+
+function Library:ClearAllNotifications()
+    for _, Notification in ipairs(self.NotificationSystem.Notifications) do
+        if not Notification.IsLeaving then
+            Notification.IsLeaving = true
+            Notification.Frame:Destroy()
+        end
+    end
+    self.NotificationSystem.Notifications = {}
+end
 
 local function ClearExistingGuis()
     for Name, Parent in pairs(ValidGuis) do
@@ -239,6 +495,7 @@ function Library:SetTheme(ThemeName)
     end
 
     self.CurrentTheme = ThemeName
+    self.NotificationSystem.CurrentTheme = ThemeName
 
     local Path = "RiseV6UI/.style"
     FileManager:CreateFolder("RiseV6UI")
