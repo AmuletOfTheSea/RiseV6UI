@@ -1626,52 +1626,35 @@ function Library:AddModule(Tab, Config)
         Module:SetExpanded(not Module.Expanded)
     end)
 
+    local BaseHolderHeight = 40
+
     Container:GetPropertyChangedSignal("Size"):Connect(function()
-        Holder.Size = UDim2.new(1, -8, 0, 40 + Container.Size.Y.Offset)
+        Holder.Size = UDim2.new(1, -8, 0, BaseHolderHeight + Container.Size.Y.Offset)
     end)
 
     if ToolTipText then
-
-        local ToolTipClip = Instance.new("Frame")
-        ToolTipClip.Size = UDim2.new(1, -120, 0, 40)
-        ToolTipClip.Position = UDim2.new(0, 0, 0, 0)
-        ToolTipClip.BackgroundTransparency = 1
-        ToolTipClip.ClipsDescendants = true
-        ToolTipClip.Parent = Holder
+        -- Expand the holder and button to fit the tooltip row below the name
+        BaseHolderHeight = 58
+        Holder.Size = UDim2.new(1, -8, 0, 58)
+        Button.Size = UDim2.new(1, 0, 0, 58)
 
         local ToolTipLabel = Instance.new("TextLabel")
         ToolTipLabel.BackgroundTransparency = 1
         ToolTipLabel.Text = ToolTipText
-        ToolTipLabel.TextSize = 14
+        ToolTipLabel.TextSize = 13
         ToolTipLabel.Visible = true
         ToolTipLabel.TextTransparency = 0.35
-        ToolTipLabel.Size = UDim2.new(1, 0, 1, 0)
+        ToolTipLabel.Size = UDim2.new(1, -20, 0, 18)
+        ToolTipLabel.Position = UDim2.new(0, 10, 0, 34)
         ToolTipLabel.TextXAlignment = Enum.TextXAlignment.Left
         ToolTipLabel.TextTruncate = Enum.TextTruncate.AtEnd
-        ToolTipLabel.Parent = ToolTipClip
+        ToolTipLabel.Parent = Holder
         pcall(function() ToolTipLabel.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Regular, Enum.FontStyle.Normal) end)
 
         self:TrackTheme(ToolTipLabel, "TextColor3", "Text")
 
-        local ToolTipPadding = Instance.new("UIPadding")
-        ToolTipPadding.PaddingLeft = UDim.new(0, 4)
-        ToolTipPadding.Parent = ToolTipLabel
-
-        local Updating = false
-
-        local function UpdateToolTipPosition()
-            if Updating then return end
-            Updating = true
-
-            local XOffset = Label.AbsolutePosition.X - Holder.AbsolutePosition.X + Label.AbsoluteSize.X + 8
-            ToolTipClip.Position = UDim2.new(0, XOffset, 0, 0)
-            ToolTipClip.Size = UDim2.new(1, -XOffset - 8, 0, 40)
-            Updating = false
-        end
-
-        Label:GetPropertyChangedSignal("AbsoluteSize"):Connect(UpdateToolTipPosition)
-        Label:GetPropertyChangedSignal("AbsolutePosition"):Connect(UpdateToolTipPosition)
-        task.defer(UpdateToolTipPosition)
+        -- Keep Container offset below the expanded header
+        Container.Position = UDim2.new(0, 0, 0, 50)
     end
 
     UpdateVisual()
@@ -3945,7 +3928,7 @@ local function SetState(State)
         task.defer(function()
             ScreenGuis.MouseUnlockerUI.Enabled = false
             UserInputService.MouseBehavior = Enum.MouseBehavior.Default
-            UserInputService.MouseIconEnabled = PreviousMouseIconEnabled
+            UserInputService.MouseIconEnabled = true
             Cursor.Visible = false
         end)
     end
