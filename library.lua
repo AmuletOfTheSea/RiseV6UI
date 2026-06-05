@@ -181,7 +181,7 @@ local function CreateNotificationUI(Message, Type, Duration, CustomColor)
     
     local MessageLabel = Instance.new("TextLabel")
     MessageLabel.Name = "Message"
-    MessageLabel.Size = UDim2.new(1, -45, 1, 0)
+    MessageLabel.Size = UDim2.new(1, -52, 1, 0)
     MessageLabel.Position = UDim2.new(0, 35, 0, 0)
     MessageLabel.BackgroundTransparency = 1
     MessageLabel.Text = Message
@@ -193,17 +193,42 @@ local function CreateNotificationUI(Message, Type, Duration, CustomColor)
     local _fontOk = pcall(function() MessageLabel.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Medium, Enum.FontStyle.Normal) end)
     if not _fontOk then MessageLabel.Font = Enum.Font.GothamMedium end
     MessageLabel.Parent = ContentContainer
-    
+
+    -- Styled close button: a small rounded square with two rotated bar lines for the X
     local CloseButton = Instance.new("TextButton")
     CloseButton.Name = "CloseButton"
-    CloseButton.Size = UDim2.new(0, 25, 0, 25)
-    CloseButton.Position = UDim2.new(1, -30, 0.5, -12)
+    CloseButton.Size = UDim2.new(0, 22, 0, 22)
+    CloseButton.Position = UDim2.new(1, -28, 0.5, -11)
     CloseButton.BackgroundTransparency = 1
-    CloseButton.Text = "✕"
-    CloseButton.TextSize = 16
-    CloseButton.TextColor3 = TxtColor
+    CloseButton.Text = ""
     CloseButton.AutoButtonColor = false
     CloseButton.Parent = ContentContainer
+
+    local CloseBar1 = Instance.new("Frame")
+    CloseBar1.Size = UDim2.new(0, 12, 0, 2)
+    CloseBar1.AnchorPoint = Vector2.new(0.5, 0.5)
+    CloseBar1.Position = UDim2.new(0.5, 0, 0.5, 0)
+    CloseBar1.Rotation = 45
+    CloseBar1.BackgroundColor3 = TxtColor
+    CloseBar1.BackgroundTransparency = 0.3
+    CloseBar1.BorderSizePixel = 0
+    local CloseBar1Corner = Instance.new("UICorner")
+    CloseBar1Corner.CornerRadius = UDim.new(1, 0)
+    CloseBar1Corner.Parent = CloseBar1
+    CloseBar1.Parent = CloseButton
+
+    local CloseBar2 = Instance.new("Frame")
+    CloseBar2.Size = UDim2.new(0, 12, 0, 2)
+    CloseBar2.AnchorPoint = Vector2.new(0.5, 0.5)
+    CloseBar2.Position = UDim2.new(0.5, 0, 0.5, 0)
+    CloseBar2.Rotation = -45
+    CloseBar2.BackgroundColor3 = TxtColor
+    CloseBar2.BackgroundTransparency = 0.3
+    CloseBar2.BorderSizePixel = 0
+    local CloseBar2Corner = Instance.new("UICorner")
+    CloseBar2Corner.CornerRadius = UDim.new(1, 0)
+    CloseBar2Corner.Parent = CloseBar2
+    CloseBar2.Parent = CloseButton
     
     local State = {
         Frame = NotificationFrame,
@@ -234,11 +259,13 @@ local function CreateNotificationUI(Message, Type, Duration, CustomColor)
     end)
     
     CloseButton.MouseEnter:Connect(function()
-        CloseButton.TextColor3 = Color
+        TweenService:Create(CloseBar1, TweenInfo.new(0.15, Enum.EasingStyle.Quad), {BackgroundColor3 = Color, BackgroundTransparency = 0}):Play()
+        TweenService:Create(CloseBar2, TweenInfo.new(0.15, Enum.EasingStyle.Quad), {BackgroundColor3 = Color, BackgroundTransparency = 0}):Play()
     end)
-    
+
     CloseButton.MouseLeave:Connect(function()
-        CloseButton.TextColor3 = TxtColor
+        TweenService:Create(CloseBar1, TweenInfo.new(0.15, Enum.EasingStyle.Quad), {BackgroundColor3 = TxtColor, BackgroundTransparency = 0.3}):Play()
+        TweenService:Create(CloseBar2, TweenInfo.new(0.15, Enum.EasingStyle.Quad), {BackgroundColor3 = TxtColor, BackgroundTransparency = 0.3}):Play()
     end)
     
     task.delay(Duration, function()
@@ -2723,8 +2750,377 @@ function Library:AddToggle(Module, Config)
     return Toggle
 end
 
-function Library:AddSlider(Module, Config)
+function Library:AddButton(Module, Config)
     Config = Config or {}
+
+    local Text    = Config.Text    or "Button"
+    local OnClick = Config.OnClick or function() end
+    local SubText = Config.SubText or nil  -- optional right-side label
+
+    local Wrapper = Instance.new("Frame")
+    Wrapper.Size = UDim2.new(1, 0, 0, 26)
+    Wrapper.BackgroundTransparency = 1
+    Wrapper.ClipsDescendants = false
+    Wrapper.Parent = Module.Container
+
+    -- Pill background
+    local Pill = Instance.new("Frame")
+    Pill.Size = UDim2.new(1, -10, 1, 0)
+    Pill.Position = UDim2.new(0, 10, 0, 0)
+    Pill.BorderSizePixel = 0
+    Pill.BackgroundTransparency = 0.85
+    Pill.Parent = Wrapper
+    self:TrackTheme(Pill, "BackgroundColor3", "Background")
+
+    local PillCorner = Instance.new("UICorner")
+    PillCorner.CornerRadius = UDim.new(0, 6)
+    PillCorner.Parent = Pill
+
+    -- Clickable button sits on top
+    local Btn = Instance.new("TextButton")
+    Btn.Size = UDim2.new(1, 0, 1, 0)
+    Btn.BackgroundTransparency = 1
+    Btn.Text = ""
+    Btn.AutoButtonColor = false
+    Btn.ZIndex = 2
+    Btn.Parent = Pill
+
+    local BtnLabel = Instance.new("TextLabel")
+    BtnLabel.Size = UDim2.new(1, -12, 1, 0)
+    BtnLabel.Position = UDim2.new(0, 8, 0, 0)
+    BtnLabel.BackgroundTransparency = 1
+    BtnLabel.Text = Text
+    BtnLabel.TextSize = 15
+    BtnLabel.TextXAlignment = Enum.TextXAlignment.Left
+    BtnLabel.ZIndex = 2
+    pcall(function() BtnLabel.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal) end)
+    BtnLabel.Parent = Pill
+    self:TrackTheme(BtnLabel, "TextColor3", "Text")
+
+    if SubText then
+        local SubLabel = Instance.new("TextLabel")
+        SubLabel.Size = UDim2.new(0, 0, 1, 0)
+        SubLabel.AnchorPoint = Vector2.new(1, 0)
+        SubLabel.Position = UDim2.new(1, -8, 0, 0)
+        SubLabel.AutomaticSize = Enum.AutomaticSize.X
+        SubLabel.BackgroundTransparency = 1
+        SubLabel.Text = SubText
+        SubLabel.TextSize = 13
+        SubLabel.TextTransparency = 0.35
+        SubLabel.TextXAlignment = Enum.TextXAlignment.Right
+        SubLabel.ZIndex = 2
+        pcall(function() SubLabel.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Regular, Enum.FontStyle.Normal) end)
+        SubLabel.Parent = Pill
+        self:TrackTheme(SubLabel, "TextColor3", "Text")
+    end
+
+    -- Press ripple effect
+    Btn.MouseButton1Down:Connect(function()
+        TweenService:Create(Pill, TweenInfo.new(0.08, Enum.EasingStyle.Quad), {BackgroundTransparency = 0.6}):Play()
+    end)
+
+    Btn.MouseButton1Up:Connect(function()
+        TweenService:Create(Pill, TweenInfo.new(0.18, Enum.EasingStyle.Quad), {BackgroundTransparency = 0.85}):Play()
+    end)
+
+    Btn.MouseEnter:Connect(function()
+        TweenService:Create(Pill, TweenInfo.new(0.12, Enum.EasingStyle.Quad), {BackgroundTransparency = 0.75}):Play()
+    end)
+
+    Btn.MouseLeave:Connect(function()
+        TweenService:Create(Pill, TweenInfo.new(0.18, Enum.EasingStyle.Quad), {BackgroundTransparency = 0.85}):Play()
+    end)
+
+    Btn.MouseButton1Click:Connect(function()
+        task.spawn(OnClick)
+    end)
+
+    local Button = {}
+
+    function Button:SetText(NewText)
+        BtnLabel.Text = NewText
+    end
+
+    function Button:SetEnabled(State)
+        Btn.Active = State
+        BtnLabel.TextTransparency = State and 0 or 0.5
+    end
+
+    return Button
+end
+
+function Library:AddColorPicker(Module, Config)
+    Config = Config or {}
+
+    local Text     = Config.Text     or "Color"
+    local Flag     = Config.Flag     or Text:gsub("%s+", "")
+    local Default  = Config.Default  or Color3.fromRGB(255, 80, 80)
+    local OnChange = Config.OnChange or function() end
+
+    local H, S, V = Color3.toHSV(Default)
+    Library.Flags[Flag] = Default
+
+    local Wrapper = Instance.new("Frame")
+    Wrapper.Size = UDim2.new(1, 0, 0, 28)
+    Wrapper.BackgroundTransparency = 1
+    Wrapper.ClipsDescendants = false
+    Wrapper.AutomaticSize = Enum.AutomaticSize.None
+    Wrapper.Parent = Module.Container
+
+    local Row = Instance.new("Frame")
+    Row.Size = UDim2.new(1, 0, 0, 28)
+    Row.BackgroundTransparency = 1
+    Row.Parent = Wrapper
+
+    local RowPadding = Instance.new("UIPadding")
+    RowPadding.PaddingLeft = UDim.new(0, 10)
+    RowPadding.Parent = Row
+
+    local NameLabel = Instance.new("TextLabel")
+    NameLabel.Size = UDim2.new(1, -44, 1, 0)
+    NameLabel.BackgroundTransparency = 1
+    NameLabel.Text = Text
+    NameLabel.TextSize = 15
+    NameLabel.TextXAlignment = Enum.TextXAlignment.Left
+    pcall(function() NameLabel.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal) end)
+    NameLabel.Parent = Row
+    self:TrackTheme(NameLabel, "TextColor3", "Text")
+
+    local Swatch = Instance.new("TextButton")
+    Swatch.Size = UDim2.new(0, 30, 0, 18)
+    Swatch.AnchorPoint = Vector2.new(1, 0.5)
+    Swatch.Position = UDim2.new(1, -4, 0.5, 0)
+    Swatch.BackgroundColor3 = Default
+    Swatch.Text = ""
+    Swatch.BorderSizePixel = 0
+    Swatch.AutoButtonColor = false
+    Swatch.Parent = Row
+
+    local SwatchCorner = Instance.new("UICorner")
+    SwatchCorner.CornerRadius = UDim.new(0, 4)
+    SwatchCorner.Parent = Swatch
+
+    local SwatchStroke = Instance.new("UIStroke")
+    SwatchStroke.Thickness = 1.5
+    SwatchStroke.Transparency = 0.6
+    SwatchStroke.Parent = Swatch
+    self:TrackTheme(SwatchStroke, "Color", "Text")
+
+    local Panel = Instance.new("Frame")
+    Panel.Size = UDim2.new(1, 0, 0, 148)
+    Panel.Position = UDim2.new(0, 0, 0, 30)
+    Panel.BackgroundTransparency = 1
+    Panel.Visible = false
+    Panel.ClipsDescendants = false
+    Panel.Parent = Wrapper
+
+    local PanelPadding = Instance.new("UIPadding")
+    PanelPadding.PaddingLeft = UDim.new(0, 10)
+    PanelPadding.PaddingRight = UDim.new(0, 4)
+    PanelPadding.Parent = Panel
+
+    local SvSize = 110
+    local SvFrame = Instance.new("Frame")
+    SvFrame.Size = UDim2.new(0, SvSize, 0, SvSize)
+    SvFrame.Position = UDim2.new(0, 0, 0, 0)
+    SvFrame.BorderSizePixel = 0
+    SvFrame.BackgroundColor3 = Color3.fromHSV(H, 1, 1)
+    SvFrame.ClipsDescendants = true
+    SvFrame.Parent = Panel
+
+    Instance.new("UICorner", SvFrame).CornerRadius = UDim.new(0, 5)
+
+    local SvWhite = Instance.new("Frame")
+    SvWhite.Size = UDim2.new(1, 0, 1, 0)
+    SvWhite.BackgroundColor3 = Color3.new(1, 1, 1)
+    SvWhite.BorderSizePixel = 0
+    SvWhite.Parent = SvFrame
+    local SvWhiteGrad = Instance.new("UIGradient")
+    SvWhiteGrad.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0,0), NumberSequenceKeypoint.new(1,1)})
+    SvWhiteGrad.Parent = SvWhite
+
+    local SvBlack = Instance.new("Frame")
+    SvBlack.Size = UDim2.new(1, 0, 1, 0)
+    SvBlack.BackgroundColor3 = Color3.new(0, 0, 0)
+    SvBlack.BorderSizePixel = 0
+    SvBlack.Parent = SvFrame
+    local SvBlackGrad = Instance.new("UIGradient")
+    SvBlackGrad.Rotation = 270
+    SvBlackGrad.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0,0), NumberSequenceKeypoint.new(1,1)})
+    SvBlackGrad.Parent = SvBlack
+
+    local SvCursor = Instance.new("Frame")
+    SvCursor.Size = UDim2.new(0, 10, 0, 10)
+    SvCursor.AnchorPoint = Vector2.new(0.5, 0.5)
+    SvCursor.BackgroundColor3 = Color3.new(1, 1, 1)
+    SvCursor.BorderSizePixel = 0
+    SvCursor.ZIndex = 5
+    SvCursor.Parent = SvFrame
+    Instance.new("UICorner", SvCursor).CornerRadius = UDim.new(1, 0)
+    local SvStroke = Instance.new("UIStroke")
+    SvStroke.Thickness = 2
+    SvStroke.Color = Color3.new(1, 1, 1)
+    SvStroke.Parent = SvCursor
+
+    local SvBtn = Instance.new("TextButton")
+    SvBtn.Size = UDim2.new(1, 0, 1, 0)
+    SvBtn.BackgroundTransparency = 1
+    SvBtn.Text = ""
+    SvBtn.ZIndex = 6
+    SvBtn.Parent = SvFrame
+
+    local HueFrame = Instance.new("Frame")
+    HueFrame.Size = UDim2.new(0, 14, 0, SvSize)
+    HueFrame.Position = UDim2.new(0, SvSize + 8, 0, 0)
+    HueFrame.BorderSizePixel = 0
+    HueFrame.ClipsDescendants = true
+    HueFrame.Parent = Panel
+    Instance.new("UICorner", HueFrame).CornerRadius = UDim.new(0, 4)
+
+    local HueGrad = Instance.new("UIGradient")
+    HueGrad.Rotation = 270
+    local HueKeys = {}
+    for i = 0, 6 do
+        HueKeys[i+1] = ColorSequenceKeypoint.new(i/6, Color3.fromHSV(i/6, 1, 1))
+    end
+    HueGrad.Color = ColorSequence.new(HueKeys)
+    HueGrad.Parent = HueFrame
+
+    local HueCursor = Instance.new("Frame")
+    HueCursor.Size = UDim2.new(1, 4, 0, 4)
+    HueCursor.AnchorPoint = Vector2.new(0.5, 0.5)
+    HueCursor.BackgroundColor3 = Color3.new(1, 1, 1)
+    HueCursor.BorderSizePixel = 0
+    HueCursor.ZIndex = 5
+    HueCursor.Position = UDim2.new(0.5, 0, 1 - H, 0)
+    HueCursor.Parent = HueFrame
+    Instance.new("UICorner", HueCursor).CornerRadius = UDim.new(0, 2)
+
+    local HueBtn = Instance.new("TextButton")
+    HueBtn.Size = UDim2.new(1, 0, 1, 0)
+    HueBtn.BackgroundTransparency = 1
+    HueBtn.Text = ""
+    HueBtn.ZIndex = 6
+    HueBtn.Parent = HueFrame
+
+    local HexRow = Instance.new("Frame")
+    HexRow.Size = UDim2.new(1, 0, 0, 24)
+    HexRow.Position = UDim2.new(0, 0, 0, SvSize + 8)
+    HexRow.BackgroundTransparency = 1
+    HexRow.Parent = Panel
+
+    local HexBox = Instance.new("TextBox")
+    HexBox.Size = UDim2.new(0, SvSize, 1, 0)
+    HexBox.BackgroundTransparency = 0.7
+    HexBox.BorderSizePixel = 0
+    HexBox.Text = string.format("%02X%02X%02X", math.floor(Default.R*255+0.5), math.floor(Default.G*255+0.5), math.floor(Default.B*255+0.5))
+    HexBox.TextSize = 13
+    HexBox.ClearTextOnFocus = false
+    HexBox.PlaceholderText = "RRGGBB"
+    pcall(function() HexBox.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Regular, Enum.FontStyle.Normal) end)
+    HexBox.Parent = HexRow
+    self:TrackTheme(HexBox, "BackgroundColor3", "Background")
+    self:TrackTheme(HexBox, "TextColor3", "Text")
+    Instance.new("UICorner", HexBox).CornerRadius = UDim.new(0, 4)
+
+    local IsDraggingSv  = false
+    local IsDraggingHue = false
+
+    local function GetCurrentColor()
+        return Color3.fromHSV(H, S, V)
+    end
+
+    local function UpdateAll()
+        local Color = GetCurrentColor()
+        Swatch.BackgroundColor3 = Color
+        SvFrame.BackgroundColor3 = Color3.fromHSV(H, 1, 1)
+        SvCursor.Position = UDim2.new(S, 0, 1 - V, 0)
+        HueCursor.Position = UDim2.new(0.5, 0, 1 - H, 0)
+        HexBox.Text = string.format("%02X%02X%02X", math.floor(Color.R*255+0.5), math.floor(Color.G*255+0.5), math.floor(Color.B*255+0.5))
+        Library.Flags[Flag] = Color
+        task.spawn(OnChange, Color)
+    end
+
+    local function ApplySvFromMouse(Pos)
+        local Abs  = SvFrame.AbsolutePosition
+        local Size = SvFrame.AbsoluteSize
+        S = math.clamp((Pos.X - Abs.X) / Size.X, 0, 1)
+        V = math.clamp(1 - (Pos.Y - Abs.Y) / Size.Y, 0, 1)
+        UpdateAll()
+    end
+
+    local function ApplyHueFromMouse(Pos)
+        local Abs  = HueFrame.AbsolutePosition
+        local Size = HueFrame.AbsoluteSize
+        H = math.clamp(1 - (Pos.Y - Abs.Y) / Size.Y, 0, 1)
+        UpdateAll()
+    end
+
+    SvBtn.MouseButton1Down:Connect(function()  IsDraggingSv = true end)
+    HueBtn.MouseButton1Down:Connect(function() IsDraggingHue = true end)
+
+    UserInputService.InputChanged:Connect(function(Input)
+        if Input.UserInputType == Enum.UserInputType.MouseMovement then
+            if IsDraggingSv  then ApplySvFromMouse(Input.Position)  end
+            if IsDraggingHue then ApplyHueFromMouse(Input.Position) end
+        end
+    end)
+
+    UserInputService.InputEnded:Connect(function(Input)
+        if Input.UserInputType == Enum.UserInputType.MouseButton1 then
+            IsDraggingSv  = false
+            IsDraggingHue = false
+        end
+    end)
+
+    SvBtn.MouseButton1Click:Connect(function()
+        ApplySvFromMouse(UserInputService:GetMouseLocation())
+    end)
+    HueBtn.MouseButton1Click:Connect(function()
+        ApplyHueFromMouse(UserInputService:GetMouseLocation())
+    end)
+
+    HexBox.FocusLost:Connect(function()
+        local hex = HexBox.Text:gsub("#",""):upper():match("^([0-9A-F]+)$")
+        if hex and #hex == 6 then
+            local r = tonumber(hex:sub(1,2),16)/255
+            local g = tonumber(hex:sub(3,4),16)/255
+            local b = tonumber(hex:sub(5,6),16)/255
+            H, S, V = Color3.toHSV(Color3.new(r, g, b))
+            UpdateAll()
+        else
+            local c = GetCurrentColor()
+            HexBox.Text = string.format("%02X%02X%02X", math.floor(c.R*255+0.5), math.floor(c.G*255+0.5), math.floor(c.B*255+0.5))
+        end
+    end)
+
+    local PanelOpen = false
+    local PanelHeight = SvSize + 8 + 24 + 8  -- sv + gap + hex + bottom pad = 150
+
+    Swatch.MouseButton1Click:Connect(function()
+        PanelOpen = not PanelOpen
+        Panel.Visible = PanelOpen
+        Wrapper.Size = UDim2.new(1, 0, 0, PanelOpen and (28 + PanelHeight) or 28)
+    end)
+
+    UpdateAll()
+
+    local ColorPicker = {}
+
+    function ColorPicker:GetValue()
+        return GetCurrentColor()
+    end
+
+    function ColorPicker:SetValue(Color)
+        H, S, V = Color3.toHSV(Color)
+        UpdateAll()
+    end
+
+    ColorPicker.Flag = Flag
+    return ColorPicker
+end
+
+function Library:AddSlider(Module, Config)
 
     local Text = Config.Text or "Slider"
     local Flag = Config.Flag or Text:gsub("%s+", "")
