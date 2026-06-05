@@ -1153,47 +1153,10 @@ function Library:CreateWindow(Options)
 
     AttachTextShadow(TitleHolder, Vector2.new(1.2, 1.2), Color3.fromRGB(0, 0, 0), self:GetTheme("ShadowAlpha"), 2, -1)
 
-    local SearchContainer = Instance.new("Frame")
-    SearchContainer.Name = "SearchContainer"
-    SearchContainer.Size = UDim2.new(1, -16, 0, 32)
-    SearchContainer.Position = UDim2.new(0, 8, 0, 52)
-    SearchContainer.BackgroundTransparency = 1
-    SearchContainer.BorderSizePixel = 0
-    SearchContainer.Parent = SideBar
-
-    local SearchBox = Instance.new("TextBox")
-    SearchBox.Name = "SearchBox"
-    SearchBox.Size = UDim2.new(1, 0, 1, 0)
-    SearchBox.BackgroundColor3 = self:GetTheme("Element")
-    SearchBox.BorderSizePixel = 0
-    SearchBox.TextColor3 = self:GetTheme("Text")
-    SearchBox.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
-    SearchBox.PlaceholderText = "Search..."
-    SearchBox.TextSize = 12
-    SearchBox.TextXAlignment = Enum.TextXAlignment.Left
-    SearchBox.Text = ""
-    SearchBox.ClearTextOnFocus = false
-    SearchBox.ZIndex = 3
-    SearchBox.Parent = SearchContainer
-
-    self:TrackTheme(SearchBox, "BackgroundColor3", "Element")
-    self:TrackTheme(SearchBox, "TextColor3", "Text")
-
-    local SearchCorner = Instance.new("UICorner")
-    SearchCorner.CornerRadius = UDim.new(0, 6)
-    SearchCorner.Parent = SearchBox
-
-    local SearchPadding = Instance.new("UIPadding")
-    SearchPadding.PaddingLeft = UDim.new(0, 8)
-    SearchPadding.PaddingRight = UDim.new(0, 8)
-    SearchPadding.Parent = SearchBox
-
-    pcall(function() SearchBox.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Medium, Enum.FontStyle.Normal) end)
-
     local TabHolder = Instance.new("Frame")
     TabHolder.Name = "TabHolder"
-    TabHolder.Size = UDim2.new(1, -24, 1, -90)
-    TabHolder.Position = UDim2.new(0, 16, 0, 90)
+    TabHolder.Size = UDim2.new(1, -24, 1, -40)
+    TabHolder.Position = UDim2.new(0, 16, 0, 40)
     TabHolder.BackgroundTransparency = 1
     TabHolder.BorderSizePixel = 0
     TabHolder.Parent = SideBar
@@ -1208,33 +1171,11 @@ function Library:CreateWindow(Options)
     Window.SideBar = SideBar
     Window.TitleHolder = TitleHolder
     Window.TabHolder = TabHolder
-    Window.Theme = self.CurrentTheme
+    Window.Theme = self.CurrentTheme  -- FIX: ThemeName was undefined in this scope; use self.CurrentTheme
     Window.Open = true
-    Window.SearchBox = SearchBox
 
     Window.ActiveTab = nil
     Window.TabTitle = TabTitle
-
-    local AllModules = {}
-    SearchBox.Changed:Connect(function(Property)
-        if Property == "Text" then
-            local Query = SearchBox.Text:lower()
-            if Query == "" then
-                for Module in pairs(AllModules) do
-                    Module.Holder.Visible = true
-                end
-            else
-                for Module in pairs(AllModules) do
-                    local ModuleName = Module.Name:lower()
-                    Module.Holder.Visible = ModuleName:find(Query, 1, true) ~= nil
-                end
-            end
-        end
-    end)
-
-    function Window:RegisterModule(Module)
-        AllModules[Module] = true
-    end
 
     function Window:AddTab(Config)
         return Library:AddTab(self, Config)
@@ -1368,7 +1309,6 @@ function Library:AddTab(Window, Config)
     Tab.Button = Button
     Tab.Content = Content
     Tab.Icon = IconImage
-    Tab.Window = Window
 
     local Hovering = false
 
@@ -1647,10 +1587,6 @@ function Library:AddModule(Tab, Config)
     Module.Container = Container
     Module.Button = Button
     Module.Holder = Holder
-
-    if Tab and Tab.Window and Tab.Window.RegisterModule then
-        Tab.Window:RegisterModule(Module)
-    end
 
     local function UpdateVisual()
         Library:Untrack(Label, "TextColor3")
