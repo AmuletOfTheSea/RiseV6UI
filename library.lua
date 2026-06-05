@@ -3610,11 +3610,11 @@ function Library:AddDropdownMultiSelect(Module, Config)
     NameLabel.Parent = Header
     self:TrackTheme(NameLabel, "TextColor3", "Text")
 
-    -- Arrow button (frame-based chevron, no font artifacts)
+    -- Arrow button — two properly sized bars forming a V chevron
     local Arrow = Instance.new("TextButton")
-    Arrow.Size = UDim2.new(0, 24, 0, 24)
+    Arrow.Size = UDim2.new(0, 20, 0, 20)
     Arrow.AnchorPoint = Vector2.new(1, 0.5)
-    Arrow.Position = UDim2.new(1, -4, 0.5, 0)
+    Arrow.Position = UDim2.new(1, -6, 0.5, 0)
     Arrow.BackgroundTransparency = 1
     Arrow.Text = ""
     Arrow.AutoButtonColor = false
@@ -3622,9 +3622,9 @@ function Library:AddDropdownMultiSelect(Module, Config)
     Arrow.Parent = Header
 
     local ChevronLeft = Instance.new("Frame")
-    ChevronLeft.Size = UDim2.new(0, 8, 0, 2)
-    ChevronLeft.AnchorPoint = Vector2.new(0.5, 0.5)
-    ChevronLeft.Position = UDim2.new(0.5, -3, 0.5, 0)
+    ChevronLeft.Size = UDim2.new(0, 10, 0, 2)
+    ChevronLeft.AnchorPoint = Vector2.new(1, 0.5)
+    ChevronLeft.Position = UDim2.new(0.5, 1, 0.5, 0)
     ChevronLeft.Rotation = 45
     ChevronLeft.BorderSizePixel = 0
     ChevronLeft.ZIndex = 4
@@ -3633,9 +3633,9 @@ function Library:AddDropdownMultiSelect(Module, Config)
     self:TrackTheme(ChevronLeft, "BackgroundColor3", "Text")
 
     local ChevronRight = Instance.new("Frame")
-    ChevronRight.Size = UDim2.new(0, 8, 0, 2)
-    ChevronRight.AnchorPoint = Vector2.new(0.5, 0.5)
-    ChevronRight.Position = UDim2.new(0.5, 3, 0.5, 0)
+    ChevronRight.Size = UDim2.new(0, 10, 0, 2)
+    ChevronRight.AnchorPoint = Vector2.new(0, 0.5)
+    ChevronRight.Position = UDim2.new(0.5, -1, 0.5, 0)
     ChevronRight.Rotation = -45
     ChevronRight.BorderSizePixel = 0
     ChevronRight.ZIndex = 4
