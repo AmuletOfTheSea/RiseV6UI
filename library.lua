@@ -3044,16 +3044,27 @@ function Library:AddColorPicker(Module, Config)
     local function ApplySvFromMouse(Pos)
         local Abs  = SvFrame.AbsolutePosition
         local Size = SvFrame.AbsoluteSize
-        S = math.clamp((Pos.X - Abs.X) / Size.X, 0, 1)
-        V = math.clamp(1 - (Pos.Y - Abs.Y) / Size.Y, 0, 1)
-        UpdateAll()
+        if Size.X > 0 and Size.Y > 0 then
+            local newS = math.clamp((Pos.X - Abs.X) / Size.X, 0, 1)
+            local newV = math.clamp(1 - (Pos.Y - Abs.Y) / Size.Y, 0, 1)
+            if math.abs(newS - S) > 0.001 or math.abs(newV - V) > 0.001 then
+                S = newS
+                V = newV
+                UpdateAll()
+            end
+        end
     end
 
     local function ApplyHueFromMouse(Pos)
         local Abs  = HueFrame.AbsolutePosition
         local Size = HueFrame.AbsoluteSize
-        H = math.clamp(1 - (Pos.Y - Abs.Y) / Size.Y, 0, 1)
-        UpdateAll()
+        if Size.Y > 0 then
+            local newH = math.clamp(1 - (Pos.Y - Abs.Y) / Size.Y, 0, 1)
+            if math.abs(newH - H) > 0.001 then
+                H = newH
+                UpdateAll()
+            end
+        end
     end
 
     SvBtn.MouseButton1Down:Connect(function()  IsDraggingSv = true end)
