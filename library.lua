@@ -3549,6 +3549,300 @@ function Library:AddCarousel(Module, Config)
     return Carousel
 end
 
+function Library:AddDropdownMultiSelect(Module, Config)
+    Config = Config or {}
+
+    local Text     = Config.Text     or "Dropdown"
+    local Flag     = Config.Flag     or Text:gsub("%s+", "")
+    local Options  = Config.Options  or {}
+    local Default  = Config.Default  or {}
+    local MaxSelect = Config.MaxSelect or math.huge
+    local OnChange = Config.OnChange or function() end
+
+    -- Selected is a set: selected[optionName] = true
+    local Selected = {}
+    for _, v in ipairs(Default) do
+        Selected[v] = true
+    end
+
+    Library.Flags[Flag] = {}
+
+    local function GetSelected()
+        local t = {}
+        for _, opt in ipairs(Options) do
+            if Selected[opt] then
+                table.insert(t, opt)
+            end
+        end
+        return t
+    end
+
+    local function UpdateFlag()
+        Library.Flags[Flag] = GetSelected()
+        OnChange(GetSelected())
+    end
+
+    -- Outer wrapper that grows when dropdown is open
+    local Wrapper = Instance.new("Frame")
+    Wrapper.Size = UDim2.new(1, 0, 0, 28)
+    Wrapper.BackgroundTransparency = 1
+    Wrapper.ClipsDescendants = false
+    Wrapper.AutomaticSize = Enum.AutomaticSize.None
+    Wrapper.Parent = Module.Container
+
+    -- Header row
+    local Header = Instance.new("Frame")
+    Header.Size = UDim2.new(1, 0, 0, 28)
+    Header.BackgroundTransparency = 1
+    Header.Parent = Wrapper
+
+    local HeaderPad = Instance.new("UIPadding")
+    HeaderPad.PaddingLeft = UDim.new(0, 10)
+    HeaderPad.Parent = Header
+
+    local NameLabel = Instance.new("TextLabel")
+    NameLabel.Size = UDim2.new(1, -44, 1, 0)
+    NameLabel.BackgroundTransparency = 1
+    NameLabel.Text = Text
+    NameLabel.TextSize = 15
+    NameLabel.TextXAlignment = Enum.TextXAlignment.Left
+    pcall(function() NameLabel.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal) end)
+    NameLabel.Parent = Header
+    self:TrackTheme(NameLabel, "TextColor3", "Text")
+
+    -- Arrow button
+    local Arrow = Instance.new("TextButton")
+    Arrow.Size = UDim2.new(0, 24, 0, 24)
+    Arrow.AnchorPoint = Vector2.new(1, 0.5)
+    Arrow.Position = UDim2.new(1, -4, 0.5, 0)
+    Arrow.BackgroundTransparency = 1
+    Arrow.Text = "▾"
+    Arrow.TextSize = 16
+    Arrow.AutoButtonColor = false
+    Arrow.ZIndex = 3
+    Arrow.Parent = Header
+    self:TrackTheme(Arrow, "TextColor3", "Text")
+
+    -- Dropdown panel (list of options)
+    local Panel = Instance.new("Frame")
+    Panel.Size = UDim2.new(1, -4, 0, 0)
+    Panel.Position = UDim2.new(0, 0, 0, 30)
+    Panel.BackgroundTransparency = 0
+    Panel.BorderSizePixel = 0
+    Panel.Visible = false
+    Panel.ClipsDescendants = true
+    Panel.ZIndex = 10
+    Panel.Parent = Wrapper
+    self:TrackTheme(Panel, "BackgroundColor3", "SideBar")
+
+    local PanelCorner = Instance.new("UICorner")
+    PanelCorner.CornerRadius = UDim.new(0, 8)
+    PanelCorner.Parent = Panel
+
+    local PanelStroke = Instance.new("UIStroke")
+    PanelStroke.Thickness = 1
+    PanelStroke.Transparency = 0.7
+    PanelStroke.Parent = Panel
+    self:TrackAccent(PanelStroke, "Color", "Accent")
+
+    local PanelLayout = Instance.new("UIListLayout")
+    PanelLayout.Padding = UDim.new(0, 2)
+    PanelLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    PanelLayout.Parent = Panel
+
+    local PanelPad = Instance.new("UIPadding")
+    PanelPad.PaddingTop = UDim.new(0, 4)
+    PanelPad.PaddingBottom = UDim.new(0, 4)
+    PanelPad.PaddingLeft = UDim.new(0, 4)
+    PanelPad.PaddingRight = UDim.new(0, 4)
+    PanelPad.Parent = Panel
+
+    local IsOpen = false
+    local TargetPanelHeight = 0
+
+    local OptionRows = {}
+
+    local function RefreshRows()
+        for _, row in ipairs(OptionRows) do
+            local opt = row.Option
+            local isOn = Selected[opt] == true
+            -- Dot visibility
+            TweenService:Create(row.Dot, TweenInfo.new(0.15, Enum.EasingStyle.Quad), {
+                BackgroundTransparency = isOn and 0 or 1
+            }):Play()
+            -- Label color via tracking swap
+            Library:Untrack(row.Label, "TextColor3")
+            if isOn then
+                Library:TrackAccent(row.Label, "TextColor3", "Accent")
+            else
+                Library:TrackTheme(row.Label, "TextColor3", "Text")
+            end
+        end
+    end
+
+    for i, opt in ipairs(Options) do
+        local Row = Instance.new("TextButton")
+        Row.Size = UDim2.new(1, 0, 0, 26)
+        Row.BackgroundTransparency = 1
+        Row.Text = ""
+        Row.LayoutOrder = i
+        Row.ZIndex = 11
+        Row.AutoButtonColor = false
+        Row.Parent = Panel
+
+        local RowHover = Instance.new("Frame")
+        RowHover.Size = UDim2.new(1, 0, 1, 0)
+        RowHover.BackgroundTransparency = 1
+        RowHover.BorderSizePixel = 0
+        RowHover.ZIndex = 10
+        RowHover.Parent = Row
+        self:TrackTheme(RowHover, "BackgroundColor3", "Background")
+
+        local RowHoverCorner = Instance.new("UICorner")
+        RowHoverCorner.CornerRadius = UDim.new(0, 6)
+        RowHoverCorner.Parent = RowHover
+
+        local Dot = Instance.new("Frame")
+        Dot.Size = UDim2.new(0, 7, 0, 7)
+        Dot.AnchorPoint = Vector2.new(0, 0.5)
+        Dot.Position = UDim2.new(0, 6, 0.5, 0)
+        Dot.BackgroundTransparency = Selected[opt] and 0 or 1
+        Dot.BorderSizePixel = 0
+        Dot.ZIndex = 12
+        Dot.Parent = Row
+        self:TrackAccent(Dot, "BackgroundColor3", "Accent")
+        Instance.new("UICorner", Dot).CornerRadius = UDim.new(1, 0)
+
+        local Label = Instance.new("TextLabel")
+        Label.Size = UDim2.new(1, -20, 1, 0)
+        Label.Position = UDim2.new(0, 20, 0, 0)
+        Label.BackgroundTransparency = 1
+        Label.Text = tostring(opt)
+        Label.TextSize = 14
+        Label.TextXAlignment = Enum.TextXAlignment.Left
+        Label.ZIndex = 12
+        pcall(function() Label.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal) end)
+        Label.Parent = Row
+        if Selected[opt] then
+            self:TrackAccent(Label, "TextColor3", "Accent")
+        else
+            self:TrackTheme(Label, "TextColor3", "Text")
+        end
+
+        Row.MouseEnter:Connect(function()
+            TweenService:Create(RowHover, TweenInfo.new(0.12, Enum.EasingStyle.Quad), {BackgroundTransparency = 0.75}):Play()
+        end)
+        Row.MouseLeave:Connect(function()
+            TweenService:Create(RowHover, TweenInfo.new(0.15, Enum.EasingStyle.Quad), {BackgroundTransparency = 1}):Play()
+        end)
+
+        Row.MouseButton1Click:Connect(function()
+            if Selected[opt] then
+                Selected[opt] = nil
+            else
+                -- enforce MaxSelect
+                local count = 0
+                for _ in pairs(Selected) do count = count + 1 end
+                if count < MaxSelect then
+                    Selected[opt] = true
+                end
+            end
+            RefreshRows()
+            UpdateFlag()
+        end)
+
+        table.insert(OptionRows, { Row = Row, Dot = Dot, Label = Label, Option = opt })
+    end
+
+    -- compute target height after layout
+    task.defer(function()
+        TargetPanelHeight = PanelLayout.AbsoluteContentSize.Y + 8
+    end)
+
+    PanelLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        TargetPanelHeight = PanelLayout.AbsoluteContentSize.Y + 8
+        if IsOpen then
+            Panel.Size = UDim2.new(1, -4, 0, TargetPanelHeight)
+            Wrapper.Size = UDim2.new(1, 0, 0, 30 + TargetPanelHeight + 4)
+        end
+    end)
+
+    local function SetOpen(State)
+        IsOpen = State
+
+        if State then
+            Panel.Visible = true
+            Arrow.Text = "▴"
+            TweenService:Create(Panel, TweenInfo.new(0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+                Size = UDim2.new(1, -4, 0, TargetPanelHeight)
+            }):Play()
+            Wrapper.Size = UDim2.new(1, 0, 0, 30 + TargetPanelHeight + 4)
+        else
+            Arrow.Text = "▾"
+            local t = TweenService:Create(Panel, TweenInfo.new(0.18, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {
+                Size = UDim2.new(1, -4, 0, 0)
+            })
+            t:Play()
+            t.Completed:Connect(function()
+                if not IsOpen then
+                    Panel.Visible = false
+                end
+            end)
+            Wrapper.Size = UDim2.new(1, 0, 0, 28)
+        end
+    end
+
+    Arrow.MouseButton1Click:Connect(function()
+        SetOpen(not IsOpen)
+    end)
+
+    -- Also allow clicking the header row itself
+    local HeaderBtn = Instance.new("TextButton")
+    HeaderBtn.Size = UDim2.new(1, -28, 1, 0)
+    HeaderBtn.BackgroundTransparency = 1
+    HeaderBtn.Text = ""
+    HeaderBtn.ZIndex = 2
+    HeaderBtn.Parent = Header
+    HeaderBtn.MouseButton1Click:Connect(function()
+        SetOpen(not IsOpen)
+    end)
+
+    -- Public API
+    local Dropdown = {}
+    Dropdown.Flag = Flag
+
+    function Dropdown:GetSelected()
+        return GetSelected()
+    end
+
+    function Dropdown:SetSelected(List)
+        Selected = {}
+        for _, v in ipairs(List) do
+            Selected[v] = true
+        end
+        RefreshRows()
+        UpdateFlag()
+    end
+
+    function Dropdown:SetOptions(NewOptions)
+        -- rebuild options list
+        Options = NewOptions
+        for _, row in ipairs(OptionRows) do
+            row.Row:Destroy()
+        end
+        OptionRows = {}
+        -- Re-add options (simplified: caller should rebuild if needed)
+        -- This is a lightweight API; full rebuild requires re-calling AddDropdownMultiSelect
+        UpdateFlag()
+    end
+
+    Library.DropdownMap = Library.DropdownMap or {}
+    Library.DropdownMap[Flag] = Dropdown
+    Library.Flags[Flag] = GetSelected()
+
+    return Dropdown
+end
+
 local Window = Library:CreateWindow({
     Name = "Perseus"
 })
