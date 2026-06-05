@@ -75,8 +75,116 @@ local Library = {
     Flags = {},
     Modules = {},
     Labels = {},
-    Toggles = {}
+    Toggles = {},
+    CurrentAnimPreset = "Smooth",
+    Keybinds = {},
+    KeybindListeners = {}
 }
+
+-- Animation preset definitions
+local AnimPresets = {
+    Smooth = {
+        Style = Enum.EasingStyle.Sine,
+        Direction = Enum.EasingDirection.Out,
+        DurationMul = 1.0,
+        RepeatCount = 0,
+        Reverses = false,
+        DelayTime = 0
+    },
+    Snappy = {
+        Style = Enum.EasingStyle.Quart,
+        Direction = Enum.EasingDirection.Out,
+        DurationMul = 0.45,
+        RepeatCount = 0,
+        Reverses = false,
+        DelayTime = 0
+    },
+    Instant = {
+        Style = Enum.EasingStyle.Linear,
+        Direction = Enum.EasingDirection.Out,
+        DurationMul = 0.001,
+        RepeatCount = 0,
+        Reverses = false,
+        DelayTime = 0
+    },
+    Elastic = {
+        Style = Enum.EasingStyle.Elastic,
+        Direction = Enum.EasingDirection.Out,
+        DurationMul = 1.1,
+        RepeatCount = 0,
+        Reverses = false,
+        DelayTime = 0
+    }
+}
+
+-- Helper: create a TweenInfo using the active preset
+-- baseDuration is the "Smooth" reference duration
+local function MakeTweenInfo(baseDuration, styleOverride, dirOverride)
+    local P = AnimPresets[Library.CurrentAnimPreset] or AnimPresets.Smooth
+    local style = styleOverride or P.Style
+    local dir = dirOverride or P.Direction
+    local dur = baseDuration * P.DurationMul
+    return TweenInfo.new(dur, style, dir, P.RepeatCount, P.Reverses, P.DelayTime)
+end
+
+function Library:SetAnimPreset(Name)
+    if not AnimPresets[Name] then return end
+    self.CurrentAnimPreset = Name
+
+    -- Persist alongside theme/accent
+    local Path = "RiseV6UI/.style"
+    FileManager:CreateFolder("RiseV6UI")
+
+    local ThemeName  = self.CurrentTheme  or "Dark"
+    local AccentName = self.CurrentAccent or "Blue"
+
+    local Data =
+        'Theme = "' .. tostring(ThemeName) .. '"\n' ..
+        'Accent = "' .. tostring(AccentName) .. '"\n' ..
+        'AnimPreset = "' .. tostring(Name) .. '"'
+
+    FileManager:WriteFile(Path, Data)
+end
+
+-- Keybind system
+function Library:RegisterKeybind(Flag, Default, Callback)
+    Default = Default or Enum.KeyCode.RightControl
+    self.Keybinds[Flag] = {
+        KeyCode = Default,
+        Callback = Callback
+    }
+    self.Flags[Flag .. "_keybind"] = Default.Name
+
+    -- Persist keybind
+    local path = "RiseV6UI/.keybinds"
+    FileManager:CreateFolder("RiseV6UI")
+    if FileManager:IsFile(path) then
+        local raw = FileManager:ReadFile(path)
+        local saved = raw:match(Flag .. '%s*=%s*"(.-)"')
+        if saved then
+            local ok, kc = pcall(function() return Enum.KeyCode[saved] end)
+            if ok and kc then
+                self.Keybinds[Flag].KeyCode = kc
+                self.Flags[Flag .. "_keybind"] = saved
+            end
+        end
+    end
+end
+
+function Library:SetKeybind(Flag, KeyCode)
+    if not self.Keybinds[Flag] then return end
+    self.Keybinds[Flag].KeyCode = KeyCode
+    self.Flags[Flag .. "_keybind"] = KeyCode.Name
+
+    -- Save all keybinds
+    local path = "RiseV6UI/.keybinds"
+    FileManager:CreateFolder("RiseV6UI")
+    local lines = {}
+    for f, data in pairs(self.Keybinds) do
+        table.insert(lines, f .. ' = "' .. data.KeyCode.Name .. '"')
+    end
+    FileManager:WriteFile(path, table.concat(lines, "\n"))
+end
 
 
 local NotificationTypes = {
@@ -446,17 +554,8 @@ function Library:ToggleWindow(Window, Value)
 
     local Duration = 0.22
 
-    local ShowTweenInformation = TweenInfo.new(
-        Duration,
-        Enum.EasingStyle.Sine,
-        Enum.EasingDirection.Out
-    )
-
-    local HideTweenInformation = TweenInfo.new(
-        Duration,
-        Enum.EasingStyle.Sine,
-        Enum.EasingDirection.In
-    )
+    local ShowTweenInformation = MakeTweenInfo(Duration, nil, Enum.EasingDirection.Out)
+    local HideTweenInformation = MakeTweenInfo(Duration, nil, Enum.EasingDirection.In)
 
     if not Window.UIScale then
         local UIScale = Instance.new("UIScale")
@@ -519,7 +618,8 @@ function Library:SetTheme(ThemeName)
 
     local Data =
         'Theme = "' .. tostring(ThemeName) .. '"\n' ..
-        'Accent = "' .. tostring(AccentName) .. '"'
+        'Accent = "' .. tostring(AccentName) .. '"\n' ..
+        'AnimPreset = "' .. tostring(self.CurrentAnimPreset or "Smooth") .. '"'
 
     FileManager:WriteFile(Path, Data)
 
@@ -584,7 +684,8 @@ function Library:SetAccent(AccentName)
 
     local Data =
         'Theme = "' .. tostring(ThemeName) .. '"\n' ..
-        'Accent = "' .. tostring(AccentName) .. '"'
+        'Accent = "' .. tostring(AccentName) .. '"\n' ..
+        'AnimPreset = "' .. tostring(self.CurrentAnimPreset or "Smooth") .. '"'
 
     FileManager:WriteFile(Path, Data)
 
@@ -647,7 +748,8 @@ function Library:SaveStyle()
 
     local Data =
         'Theme = "' .. tostring(self.CurrentTheme or "Dark") .. '"\n' ..
-        'Accent = "' .. tostring(self.CurrentAccent or "Blue") .. '"'
+        'Accent = "' .. tostring(self.CurrentAccent or "Blue") .. '"\n' ..
+        'AnimPreset = "' .. tostring(self.CurrentAnimPreset or "Smooth") .. '"'
 
     FileManager:WriteFile(Path, Data)
 end
@@ -663,6 +765,7 @@ function Library:LoadStyle()
 
     local Theme = Data:match('Theme%s*=%s*"(.-)"')
     local Accent = Data:match('Accent%s*=%s*"(.-)"')
+    local AnimPreset = Data:match('AnimPreset%s*=%s*"(.-)"')
 
     if Theme and Themes[Theme] then
         self.CurrentTheme = Theme
@@ -670,6 +773,10 @@ function Library:LoadStyle()
 
     if Accent and Accents[Accent] then
         self.CurrentAccent = Accent
+    end
+
+    if AnimPreset and AnimPresets[AnimPreset] then
+        self.CurrentAnimPreset = AnimPreset
     end
 
     for i = 1, #self.ThemeObjects do
@@ -1286,8 +1393,8 @@ function Library:AddTab(Window, Config)
 
     local Hovering = false
 
-    local HoverTweenIn = TweenInfo.new(0.16, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
-    local HoverTweenOut = TweenInfo.new(0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
+    local HoverTweenIn  = MakeTweenInfo(0.16)
+    local HoverTweenOut = MakeTweenInfo(0.20)
 
     local function ApplyHover()
         if Window.ActiveTab == Tab then
@@ -1366,7 +1473,7 @@ function Library:AddTab(Window, Config)
 
         TweenService:Create(
             Window.TabSelector,
-            TweenInfo.new(0.16, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
+            MakeTweenInfo(0.16),
             {
                 Position = UDim2.new(0, SelectorTargetOffsetX, 0, SelectorTargetOffsetY + 6),
                 Size = UDim2.new(0, SelectorTargetWidth, 0, 28)
@@ -1385,7 +1492,7 @@ function Library:AddTab(Window, Config)
 
             local ExitContentTween = TweenService:Create(
                 PreviousTab.Content,
-                TweenInfo.new(0.18, Enum.EasingStyle.Quart, Enum.EasingDirection.In),
+                MakeTweenInfo(0.18, nil, Enum.EasingDirection.In),
                 {
                     Position = UDim2.new(0, 130, 0, -40)
                 }
@@ -1405,7 +1512,7 @@ function Library:AddTab(Window, Config)
 
         local EnterContentTween = TweenService:Create(
             Content,
-            TweenInfo.new(0.26, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
+            MakeTweenInfo(0.26),
             {
                 Position = UDim2.new(0, 130, 0, 40)
             }
@@ -1470,6 +1577,10 @@ function Library:AddTab(Window, Config)
 
     function Tab:AddConfig(Config)
         return Library:AddConfig(self, Config)
+    end
+
+    function Tab:AddAnimPresets()
+        return Library:AddAnimPresets(self)
     end
 
     return Tab
@@ -1594,7 +1705,7 @@ function Library:AddModule(Tab, Config)
 
         local Tween = TweenService:Create(
             Container,
-            TweenInfo.new(0.22, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
+            MakeTweenInfo(0.22),
             {
                 Size = UDim2.new(1, -8, 0, TargetSizeY)
             }
@@ -1673,6 +1784,10 @@ function Library:AddModule(Tab, Config)
 
     function Module:AddCarousel(Config)
         return Library:AddCarousel(self, Config)
+    end
+
+    function Module:AddKeybindPicker(Config)
+        return Library:AddKeybindPicker(self, Config)
     end
 
     return Module
@@ -2603,7 +2718,7 @@ function Library:AddToggle(Module, Config)
     Toggle.Icon = Icon
 
     local function UpdateVisual()
-        local Tween = TweenService:Create(Icon, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+        local Tween = TweenService:Create(Icon, MakeTweenInfo(0.2), {
             BackgroundTransparency = Toggle.Enabled and 0 or 1
         })
 
@@ -3229,10 +3344,8 @@ function Library:AddSlider(Module, Config)
     Library:TrackTheme(ValueLabel, "TextColor3", "Text")
 
 
-    local SliderTweenInfo = TweenInfo.new(0.07, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-
     local function TweenProperties(Instance, Properties)
-        TweenService:Create(Instance, SliderTweenInfo, Properties):Play()
+        TweenService:Create(Instance, MakeTweenInfo(0.07), Properties):Play()
     end
 
     local function UpdateVisual()
@@ -3848,9 +3961,193 @@ function Library:AddDropdownMultiSelect(Module, Config)
     return Dropdown
 end
 
-local Window = Library:CreateWindow({
-    Name = "Perseus"
-})
+function Library:AddAnimPresets(Tab)
+    local Holder = Instance.new("Frame")
+    Holder.Size = UDim2.new(1, -8, 0, 110)
+    Holder.BackgroundTransparency = 0
+    Holder.BorderSizePixel = 0
+    Holder.Parent = Tab.Content
+
+    self:TrackTheme(Holder, "BackgroundColor3", "SideBar")
+
+    local Corner = Instance.new("UICorner")
+    Corner.CornerRadius = UDim.new(0, 10)
+    Corner.Parent = Holder
+
+    local Title = Instance.new("TextLabel")
+    Title.Size = UDim2.new(1, -12, 0, 20)
+    Title.Position = UDim2.new(0, 6, 0, 4)
+    Title.BackgroundTransparency = 1
+    Title.Text = "Animation"
+    Title.TextSize = 18
+    Title.TextXAlignment = Enum.TextXAlignment.Left
+    pcall(function() Title.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal) end)
+    Title.Parent = Holder
+
+    self:TrackTheme(Title, "TextColor3", "Text")
+
+    local Container = Instance.new("Frame")
+    Container.Size = UDim2.new(1, -12, 0, 80)
+    Container.Position = UDim2.new(0, 6, 0, 26)
+    Container.BackgroundTransparency = 1
+    Container.Parent = Holder
+
+    local Grid = Instance.new("UIGridLayout")
+    Grid.CellSize = UDim2.new(0.5, -4, 0, 34)
+    Grid.CellPadding = UDim2.new(0, 6, 0, 6)
+    Grid.Parent = Container
+
+    local PresetNames = {"Smooth", "Snappy", "Instant", "Elastic"}
+    local PresetButtons = {}
+
+    local function RefreshSelected()
+        for name, data in pairs(PresetButtons) do
+            local isActive = name == Library.CurrentAnimPreset
+            Library:Untrack(data.Btn, "BackgroundColor3")
+            Library:Untrack(data.Label, "TextColor3")
+            if isActive then
+                Library:TrackAccent(data.Btn, "BackgroundColor3", "Accent")
+                data.Label.TextTransparency = 0
+            else
+                Library:TrackTheme(data.Btn, "BackgroundColor3", "Background")
+                data.Label.TextTransparency = 0.3
+            end
+        end
+    end
+
+    for _, Name in ipairs(PresetNames) do
+        local Btn = Instance.new("TextButton")
+        Btn.Text = ""
+        Btn.BorderSizePixel = 0
+        Btn.AutoButtonColor = false
+        Btn.Parent = Container
+
+        local BtnCorner = Instance.new("UICorner")
+        BtnCorner.CornerRadius = UDim.new(0, 8)
+        BtnCorner.Parent = Btn
+
+        local BtnLabel = Instance.new("TextLabel")
+        BtnLabel.Size = UDim2.new(1, 0, 1, 0)
+        BtnLabel.BackgroundTransparency = 1
+        BtnLabel.Text = Name
+        BtnLabel.TextSize = 14
+        pcall(function() BtnLabel.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal) end)
+        BtnLabel.Parent = Btn
+
+        self:TrackTheme(BtnLabel, "TextColor3", "Text")
+
+        PresetButtons[Name] = { Btn = Btn, Label = BtnLabel }
+
+        Btn.MouseButton1Click:Connect(function()
+            Library:SetAnimPreset(Name)
+            RefreshSelected()
+        end)
+    end
+
+    RefreshSelected()
+
+    return Holder
+end
+
+function Library:AddKeybindPicker(Module, Config)
+    Config = Config or {}
+
+    local Text    = Config.Text    or "Keybind"
+    local Flag    = Config.Flag    or Text:gsub("%s+", "")
+    local Default = Config.Default or Enum.KeyCode.RightControl
+    local OnChange = Config.OnChange or function() end
+
+    -- Register in Library's keybind table if not already done
+    if not self.Keybinds[Flag] then
+        self:RegisterKeybind(Flag, Default, OnChange)
+    end
+
+    local CurrentKey = self.Keybinds[Flag].KeyCode
+    local Listening = false
+
+    local Wrapper = Instance.new("Frame")
+    Wrapper.Size = UDim2.new(1, 0, 0, 28)
+    Wrapper.BackgroundTransparency = 1
+    Wrapper.Parent = Module.Container
+
+    local Pad = Instance.new("UIPadding")
+    Pad.PaddingLeft = UDim.new(0, 10)
+    Pad.Parent = Wrapper
+
+    local NameLabel = Instance.new("TextLabel")
+    NameLabel.Size = UDim2.new(1, -90, 1, 0)
+    NameLabel.BackgroundTransparency = 1
+    NameLabel.Text = Text
+    NameLabel.TextSize = 15
+    NameLabel.TextXAlignment = Enum.TextXAlignment.Left
+    pcall(function() NameLabel.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal) end)
+    NameLabel.Parent = Wrapper
+    self:TrackTheme(NameLabel, "TextColor3", "Text")
+
+    local Pill = Instance.new("TextButton")
+    Pill.Size = UDim2.new(0, 80, 0, 20)
+    Pill.AnchorPoint = Vector2.new(1, 0.5)
+    Pill.Position = UDim2.new(1, -6, 0.5, 0)
+    Pill.BorderSizePixel = 0
+    Pill.Text = CurrentKey.Name
+    Pill.TextSize = 13
+    Pill.AutoButtonColor = false
+    pcall(function() Pill.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal) end)
+    Pill.Parent = Wrapper
+
+    self:TrackTheme(Pill, "BackgroundColor3", "Background")
+    self:TrackTheme(Pill, "TextColor3", "Text")
+
+    local PillCorner = Instance.new("UICorner")
+    PillCorner.CornerRadius = UDim.new(0, 6)
+    PillCorner.Parent = Pill
+
+    local PillStroke = Instance.new("UIStroke")
+    PillStroke.Thickness = 1.5
+    PillStroke.Transparency = 0.6
+    PillStroke.Parent = Pill
+    self:TrackAccent(PillStroke, "Color", "Accent")
+
+    local function SetListening(State)
+        Listening = State
+        if State then
+            Pill.Text = "..."
+            Library:TrackAccent(Pill, "BackgroundColor3", "Accent")
+            Library:Untrack(Pill, "TextColor3")
+            Pill.TextColor3 = Color3.new(1, 1, 1)
+        else
+            Pill.Text = CurrentKey.Name
+            Library:Untrack(Pill, "BackgroundColor3")
+            Library:TrackTheme(Pill, "BackgroundColor3", "Background")
+            Library:TrackTheme(Pill, "TextColor3", "Text")
+        end
+    end
+
+    Pill.MouseButton1Click:Connect(function()
+        SetListening(not Listening)
+    end)
+
+    UserInputService.InputBegan:Connect(function(Input, GameProcessed)
+        if not Listening then return end
+        if Input.UserInputType ~= Enum.UserInputType.Keyboard then return end
+        if Input.KeyCode == Enum.KeyCode.Escape then
+            SetListening(false)
+            return
+        end
+        CurrentKey = Input.KeyCode
+        Library:SetKeybind(Flag, CurrentKey)
+        -- Update the callback reference
+        if self.Keybinds[Flag] then
+            self.Keybinds[Flag].Callback = OnChange
+        end
+        OnChange(CurrentKey)
+        SetListening(false)
+    end)
+
+    return Wrapper
+end
+
+
 
 local StyleTab = Window:AddTab({
     Name = "Style",
@@ -3859,6 +4156,22 @@ local StyleTab = Window:AddTab({
 
 StyleTab:AddThemes()
 StyleTab:AddAccents()
+Library:AddAnimPresets(StyleTab)
+
+-- Keybind settings module in Style tab
+local KeybindModule = Library:AddModule(StyleTab, {
+    Name = "Keybinds",
+    Flag = "KeybindSection"
+})
+
+Library:AddKeybindPicker(KeybindModule, {
+    Text = "Toggle UI",
+    Flag = "ToggleUI",
+    Default = Enum.KeyCode.RightControl,
+    OnChange = function(Key)
+        Library:Info("UI keybind set to: " .. Key.Name, 3)
+    end
+})
 
 local ConfigsTab = Window:AddTab({
     Name = "Configs",
@@ -3868,13 +4181,24 @@ local ConfigsTab = Window:AddTab({
 local ConfigSystem = ConfigSystemFactory(Library)
 ConfigsTab:AddConfig(ConfigSystem)
 
+-- Register default window toggle keybind
+Library:RegisterKeybind("ToggleUI", Enum.KeyCode.RightControl, function() end)
+
 UserInputService.InputBegan:Connect(function(Input, GameProcessed)
     if GameProcessed then return end
 
-    if Input.KeyCode == Enum.KeyCode.RightControl
-        or Input.KeyCode == Enum.KeyCode.RightShift
-    then
+    -- Window toggle via registered keybind
+    local ToggleData = Library.Keybinds["ToggleUI"]
+    if ToggleData and Input.KeyCode == ToggleData.KeyCode then
         Library:ToggleWindow(Window)
+        return
+    end
+
+    -- Fire any other registered keybind callbacks
+    for Flag, Data in pairs(Library.Keybinds) do
+        if Flag ~= "ToggleUI" and Input.KeyCode == Data.KeyCode then
+            task.spawn(Data.Callback, Input.KeyCode)
+        end
     end
 end)
 
