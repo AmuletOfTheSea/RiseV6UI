@@ -1153,10 +1153,47 @@ function Library:CreateWindow(Options)
 
     AttachTextShadow(TitleHolder, Vector2.new(1.2, 1.2), Color3.fromRGB(0, 0, 0), self:GetTheme("ShadowAlpha"), 2, -1)
 
+    local SearchContainer = Instance.new("Frame")
+    SearchContainer.Name = "SearchContainer"
+    SearchContainer.Size = UDim2.new(1, -16, 0, 32)
+    SearchContainer.Position = UDim2.new(0, 8, 0, 52)
+    SearchContainer.BackgroundTransparency = 1
+    SearchContainer.BorderSizePixel = 0
+    SearchContainer.Parent = SideBar
+
+    local SearchBox = Instance.new("TextBox")
+    SearchBox.Name = "SearchBox"
+    SearchBox.Size = UDim2.new(1, 0, 1, 0)
+    SearchBox.BackgroundColor3 = self:GetTheme("Element")
+    SearchBox.BorderSizePixel = 0
+    SearchBox.TextColor3 = self:GetTheme("Text")
+    SearchBox.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
+    SearchBox.PlaceholderText = "Search..."
+    SearchBox.TextSize = 12
+    SearchBox.TextXAlignment = Enum.TextXAlignment.Left
+    SearchBox.Text = ""
+    SearchBox.ClearTextOnFocus = false
+    SearchBox.ZIndex = 3
+    SearchBox.Parent = SearchContainer
+
+    self:TrackTheme(SearchBox, "BackgroundColor3", "Element")
+    self:TrackTheme(SearchBox, "TextColor3", "Text")
+
+    local SearchCorner = Instance.new("UICorner")
+    SearchCorner.CornerRadius = UDim.new(0, 6)
+    SearchCorner.Parent = SearchBox
+
+    local SearchPadding = Instance.new("UIPadding")
+    SearchPadding.PaddingLeft = UDim.new(0, 8)
+    SearchPadding.PaddingRight = UDim.new(0, 8)
+    SearchPadding.Parent = SearchBox
+
+    pcall(function() SearchBox.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Medium, Enum.FontStyle.Normal) end)
+
     local TabHolder = Instance.new("Frame")
     TabHolder.Name = "TabHolder"
-    TabHolder.Size = UDim2.new(1, -24, 1, -40)
-    TabHolder.Position = UDim2.new(0, 16, 0, 40)
+    TabHolder.Size = UDim2.new(1, -24, 1, -90)
+    TabHolder.Position = UDim2.new(0, 16, 0, 90)
     TabHolder.BackgroundTransparency = 1
     TabHolder.BorderSizePixel = 0
     TabHolder.Parent = SideBar
@@ -1171,14 +1208,40 @@ function Library:CreateWindow(Options)
     Window.SideBar = SideBar
     Window.TitleHolder = TitleHolder
     Window.TabHolder = TabHolder
-    Window.Theme = self.CurrentTheme  -- FIX: ThemeName was undefined in this scope; use self.CurrentTheme
+    Window.Theme = self.CurrentTheme
     Window.Open = true
+    Window.SearchBox = SearchBox
 
     Window.ActiveTab = nil
     Window.TabTitle = TabTitle
 
     function Window:AddTab(Config)
         return Library:AddTab(self, Config)
+    end
+
+    local AllModules = {}
+    local OriginalVisibility = {}
+
+    SearchBox.Changed:Connect(function(Property)
+        if Property == "Text" then
+            local Query = SearchBox.Text:lower()
+
+            if Query == "" then
+                for Module, Original in pairs(OriginalVisibility) do
+                    Module.Container.Visible = Original
+                end
+            else
+                for Module, _ in pairs(AllModules) do
+                    local ModuleName = Module.Container.Name:lower()
+                    Module.Container.Visible = ModuleName:find(Query, 1, true) ~= nil
+                end
+            end
+        end
+    end)
+
+    Window.RegisterModuleForSearch = function(Module)
+        AllModules[Module] = true
+        OriginalVisibility[Module] = Module.Container.Visible
     end
 
     self.Window = Window
@@ -1736,6 +1799,22 @@ function Library:AddModule(Tab, Config)
 
     function Module:AddCarousel(Config)
         return Library:AddCarousel(self, Config)
+    end
+
+    if Tab and Tab.Content and Tab.Content.Parent then
+        local Window = nil
+        local CurrentParent = Tab.Content.Parent
+        while CurrentParent and not Window do
+            if CurrentParent:FindFirstChild("TabHolder") then
+                Window = self.Window
+                break
+            end
+            CurrentParent = CurrentParent.Parent
+        end
+        
+        if Window and Window.RegisterModuleForSearch then
+            Window:RegisterModuleForSearch(Module)
+        end
     end
 
     return Module
@@ -3701,74 +3780,5 @@ Library:RenderStepped(function()
         Pos.Y - Inset.Y
     )
 end)
-
--- ═══════════════════════════════════════════════════════════════════════════
--- SEARCH SYSTEM INTEGRATION
--- ═══════════════════════════════════════════════════════════════════════════
-
-function Library:CreateSearchBox(TabContainer, Config)
-    Config = Config or {}
-    
-    -- Handle both Tab object and Instance
-    local Container = TabContainer
-    if TabContainer and TabContainer.Content then
-        Container = TabContainer.Content
-    end
-    
-    local SearchBox = Instance.new("TextBox")
-    SearchBox.Name = "SearchBox"
-    SearchBox.Size = UDim2.new(1, -16, 0, 32)
-    SearchBox.Position = UDim2.new(0, 0, 0, 0)
-    SearchBox.LayoutOrder = -1
-    SearchBox.BackgroundColor3 = Config.BgColor or Color3.fromRGB(30, 30, 40)
-    SearchBox.BorderSizePixel = 0
-    SearchBox.TextSize = 13
-    SearchBox.TextColor3 = Config.TextColor or Color3.fromRGB(220, 220, 230)
-    SearchBox.PlaceholderText = Config.PlaceholderText or "Search modules..."
-    SearchBox.PlaceholderColor3 = Config.PlaceholderColor or Color3.fromRGB(120, 120, 140)
-    SearchBox.ClearTextOnFocus = false
-    SearchBox.Parent = Container
-    
-    local Corner = Instance.new("UICorner")
-    Corner.CornerRadius = UDim.new(0, 6)
-    Corner.Parent = SearchBox
-    
-    local Padding = Instance.new("UIPadding")
-    Padding.PaddingLeft = UDim.new(0, 10)
-    Padding.PaddingRight = UDim.new(0, 10)
-    Padding.Parent = SearchBox
-    
-    local Stroke = Instance.new("UIStroke")
-    Stroke.Color = Config.StrokeColor or Color3.fromRGB(60, 60, 80)
-    Stroke.Thickness = 1
-    Stroke.Parent = SearchBox
-    
-    return SearchBox
-end
-
-function Library:FilterModules(Modules, Query)
-    if not Query or Query == "" then
-        for _, Module in ipairs(Modules) do
-            if Module.Instance then
-                Module.Instance.Visible = true
-            end
-        end
-        return
-    end
-    
-    local QueryLower = Query:lower()
-    
-    for _, Module in ipairs(Modules) do
-        if Module.Instance then
-            local ModuleName = (Module.Name or ""):lower()
-            local ModuleDescription = (Module.Description or ""):lower()
-            
-            local Matches = string.find(ModuleName, QueryLower, 1, true) or 
-                            string.find(ModuleDescription, QueryLower, 1, true)
-            
-            Module.Instance.Visible = Matches ~= nil
-        end
-    end
-end
 
 return Library
