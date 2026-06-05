@@ -3093,13 +3093,6 @@ function Library:AddColorPicker(Module, Config)
         end
     end)
 
-    SvBtn.MouseButton1Click:Connect(function()
-        ApplySvFromMouse(UserInputService:GetMouseLocation())
-    end)
-    HueBtn.MouseButton1Click:Connect(function()
-        ApplyHueFromMouse(UserInputService:GetMouseLocation())
-    end)
-
     HexBox.FocusLost:Connect(function()
         local hex = HexBox.Text:gsub("#",""):upper():match("^([0-9A-F]+)$")
         if hex and #hex == 6 then
