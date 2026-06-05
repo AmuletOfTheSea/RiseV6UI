@@ -3025,12 +3025,20 @@ function Library:AddColorPicker(Module, Config)
 
     local IsDraggingSv  = false
     local IsDraggingHue = false
+    local LastUpdateTime = 0
+    local MinUpdateDelta = 0.01  -- Minimum time between updates (seconds)
 
     local function GetCurrentColor()
         return Color3.fromHSV(H, S, V)
     end
 
     local function UpdateAll()
+        local currentTime = tick()
+        if currentTime - LastUpdateTime < MinUpdateDelta then
+            return
+        end
+        LastUpdateTime = currentTime
+        
         local Color = GetCurrentColor()
         Swatch.BackgroundColor3 = Color
         SvFrame.BackgroundColor3 = Color3.fromHSV(H, 1, 1)
@@ -3042,29 +3050,30 @@ function Library:AddColorPicker(Module, Config)
     end
 
     local function ApplySvFromMouse(Pos)
+        if not IsDraggingSv then return end
+        
         local Abs  = SvFrame.AbsolutePosition
         local Size = SvFrame.AbsoluteSize
-        if Size.X > 0 and Size.Y > 0 then
-            local newS = math.clamp((Pos.X - Abs.X) / Size.X, 0, 1)
-            local newV = math.clamp(1 - (Pos.Y - Abs.Y) / Size.Y, 0, 1)
-            if math.abs(newS - S) > 0.001 or math.abs(newV - V) > 0.001 then
-                S = newS
-                V = newV
-                UpdateAll()
-            end
-        end
+        if Size.X <= 0 or Size.Y <= 0 then return end
+        
+        local newS = math.clamp((Pos.X - Abs.X) / Size.X, 0, 1)
+        local newV = math.clamp(1 - (Pos.Y - Abs.Y) / Size.Y, 0, 1)
+        
+        S = newS
+        V = newV
+        UpdateAll()
     end
 
     local function ApplyHueFromMouse(Pos)
+        if not IsDraggingHue then return end
+        
         local Abs  = HueFrame.AbsolutePosition
         local Size = HueFrame.AbsoluteSize
-        if Size.Y > 0 then
-            local newH = math.clamp(1 - (Pos.Y - Abs.Y) / Size.Y, 0, 1)
-            if math.abs(newH - H) > 0.001 then
-                H = newH
-                UpdateAll()
-            end
-        end
+        if Size.Y <= 0 then return end
+        
+        local newH = math.clamp(1 - (Pos.Y - Abs.Y) / Size.Y, 0, 1)
+        H = newH
+        UpdateAll()
     end
 
     SvBtn.MouseButton1Down:Connect(function()  IsDraggingSv = true end)
@@ -3107,13 +3116,11 @@ function Library:AddColorPicker(Module, Config)
 
     local PanelOpen = false
     local PanelHeight = SvSize + 8 + 24 + 8  -- sv + gap + hex + bottom pad = 150
-    
-    -- Set wrapper to always be full size to prevent layout thrashing during drag
-    Wrapper.Size = UDim2.new(1, 0, 0, 28 + PanelHeight)
 
     Swatch.MouseButton1Click:Connect(function()
         PanelOpen = not PanelOpen
         Panel.Visible = PanelOpen
+        Wrapper.Size = UDim2.new(1, 0, 0, PanelOpen and (28 + PanelHeight) or 28)
     end)
 
     UpdateAll()
