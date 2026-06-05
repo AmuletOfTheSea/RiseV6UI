@@ -3610,18 +3610,38 @@ function Library:AddDropdownMultiSelect(Module, Config)
     NameLabel.Parent = Header
     self:TrackTheme(NameLabel, "TextColor3", "Text")
 
-    -- Arrow button
+    -- Arrow button (frame-based chevron, no font artifacts)
     local Arrow = Instance.new("TextButton")
     Arrow.Size = UDim2.new(0, 24, 0, 24)
     Arrow.AnchorPoint = Vector2.new(1, 0.5)
     Arrow.Position = UDim2.new(1, -4, 0.5, 0)
     Arrow.BackgroundTransparency = 1
-    Arrow.Text = "▾"
-    Arrow.TextSize = 16
+    Arrow.Text = ""
     Arrow.AutoButtonColor = false
     Arrow.ZIndex = 3
     Arrow.Parent = Header
-    self:TrackTheme(Arrow, "TextColor3", "Text")
+
+    local ChevronLeft = Instance.new("Frame")
+    ChevronLeft.Size = UDim2.new(0, 8, 0, 2)
+    ChevronLeft.AnchorPoint = Vector2.new(0.5, 0.5)
+    ChevronLeft.Position = UDim2.new(0.5, -3, 0.5, 0)
+    ChevronLeft.Rotation = 45
+    ChevronLeft.BorderSizePixel = 0
+    ChevronLeft.ZIndex = 4
+    ChevronLeft.Parent = Arrow
+    Instance.new("UICorner", ChevronLeft).CornerRadius = UDim.new(1, 0)
+    self:TrackTheme(ChevronLeft, "BackgroundColor3", "Text")
+
+    local ChevronRight = Instance.new("Frame")
+    ChevronRight.Size = UDim2.new(0, 8, 0, 2)
+    ChevronRight.AnchorPoint = Vector2.new(0.5, 0.5)
+    ChevronRight.Position = UDim2.new(0.5, 3, 0.5, 0)
+    ChevronRight.Rotation = -45
+    ChevronRight.BorderSizePixel = 0
+    ChevronRight.ZIndex = 4
+    ChevronRight.Parent = Arrow
+    Instance.new("UICorner", ChevronRight).CornerRadius = UDim.new(1, 0)
+    self:TrackTheme(ChevronRight, "BackgroundColor3", "Text")
 
     -- Dropdown panel (list of options)
     local Panel = Instance.new("Frame")
@@ -3772,13 +3792,15 @@ function Library:AddDropdownMultiSelect(Module, Config)
 
         if State then
             Panel.Visible = true
-            Arrow.Text = "▴"
+            TweenService:Create(ChevronLeft,  TweenInfo.new(0.18, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Rotation = -45}):Play()
+            TweenService:Create(ChevronRight, TweenInfo.new(0.18, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Rotation = 45}):Play()
             TweenService:Create(Panel, TweenInfo.new(0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
                 Size = UDim2.new(1, -4, 0, TargetPanelHeight)
             }):Play()
             Wrapper.Size = UDim2.new(1, 0, 0, 30 + TargetPanelHeight + 4)
         else
-            Arrow.Text = "▾"
+            TweenService:Create(ChevronLeft,  TweenInfo.new(0.18, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Rotation = 45}):Play()
+            TweenService:Create(ChevronRight, TweenInfo.new(0.18, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Rotation = -45}):Play()
             local t = TweenService:Create(Panel, TweenInfo.new(0.18, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {
                 Size = UDim2.new(1, -4, 0, 0)
             })
