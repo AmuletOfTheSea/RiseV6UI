@@ -162,7 +162,11 @@ function Library:RegisterKeybind(Flag, Default, Callback)
         local raw = FileManager:ReadFile(path)
         local saved = raw:match(Flag .. '%s*=%s*"(.-)"')
         if saved then
-            local ok, kc = pcall(function() return Enum.KeyCode[saved] end)
+            local ok, kc = pcall(function()
+                for _, v in pairs(Enum.KeyCode:GetEnumItems()) do
+                    if v.Name == saved then return v end
+                end
+            end)
             if ok and kc then
                 self.Keybinds[Flag].KeyCode = kc
                 self.Flags[Flag .. "_keybind"] = saved
@@ -3706,7 +3710,7 @@ function Library:AddDropdownMultiSelect(Module, Config)
     NameLabel.Parent = Header
     self:TrackTheme(NameLabel, "TextColor3", "Text")
 
-    -- Arrow button — two properly sized bars forming a V chevron
+    -- Arrow button - two properly sized bars forming a V chevron
     local Arrow = Instance.new("TextButton")
     Arrow.Size = UDim2.new(0, 20, 0, 20)
     Arrow.AnchorPoint = Vector2.new(1, 0.5)
@@ -4169,7 +4173,7 @@ Library:AddKeybindPicker(KeybindModule, {
     Flag = "ToggleUI",
     Default = Enum.KeyCode.RightControl,
     OnChange = function(Key)
-        Library:Info("UI keybind set to: " .. Key.Name, 3)
+        Library:ToggleWindow(Window)
     end
 })
 
@@ -4181,22 +4185,12 @@ local ConfigsTab = Window:AddTab({
 local ConfigSystem = ConfigSystemFactory(Library)
 ConfigsTab:AddConfig(ConfigSystem)
 
--- Register default window toggle keybind
-Library:RegisterKeybind("ToggleUI", Enum.KeyCode.RightControl, function() end)
-
 UserInputService.InputBegan:Connect(function(Input, GameProcessed)
     if GameProcessed then return end
 
-    -- Window toggle via registered keybind
-    local ToggleData = Library.Keybinds["ToggleUI"]
-    if ToggleData and Input.KeyCode == ToggleData.KeyCode then
-        Library:ToggleWindow(Window)
-        return
-    end
-
-    -- Fire any other registered keybind callbacks
+    -- Fire all registered keybind callbacks (ToggleUI included)
     for Flag, Data in pairs(Library.Keybinds) do
-        if Flag ~= "ToggleUI" and Input.KeyCode == Data.KeyCode then
+        if Input.KeyCode == Data.KeyCode then
             task.spawn(Data.Callback, Input.KeyCode)
         end
     end
