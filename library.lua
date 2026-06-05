@@ -112,10 +112,6 @@ local function CreateNotificationUI(Message, Type, Duration, CustomColor)
     
     local NotifType = NotificationTypes[Type] or NotificationTypes.Info
     local Color = CustomColor or NotifType.Color
-    
-    -- BUG FIX: Themes may be nil/broken if the remote load failed. Safely
-    -- grab theme colors with pcall and fall back to hardcoded values so the
-    -- notif always renders text regardless of theme system state.
     local _bgOk, BgColor  = pcall(function() return Library:GetTheme("Background") end)
     if not _bgOk or type(BgColor) ~= "userdata" then BgColor = Color3.fromRGB(30, 30, 30) end
 
@@ -152,9 +148,6 @@ local function CreateNotificationUI(Message, Type, Duration, CustomColor)
     Shadow.BackgroundColor3 = Color3.new(0, 0, 0)
     Shadow.BackgroundTransparency = 0.7
     Shadow.BorderSizePixel = 0
-    -- FIX: Shadow was parented to NotificationFrame.Parent (the stack container),
-    -- making it an orphaned sibling that persisted after NotificationFrame:Destroy().
-    -- Parent it to NotificationFrame itself so it's destroyed along with it.
     Shadow.ZIndex = NotificationFrame.ZIndex - 1
     Shadow.Parent = NotificationFrame
     
@@ -194,7 +187,6 @@ local function CreateNotificationUI(Message, Type, Duration, CustomColor)
     if not _fontOk then MessageLabel.Font = Enum.Font.GothamMedium end
     MessageLabel.Parent = ContentContainer
 
-    -- Styled close button: a small rounded square with two rotated bar lines for the X
     local CloseButton = Instance.new("TextButton")
     CloseButton.Name = "CloseButton"
     CloseButton.Size = UDim2.new(0, 22, 0, 22)
@@ -243,10 +235,6 @@ local function CreateNotificationUI(Message, Type, Duration, CustomColor)
         if State.IsLeaving then return end
         State.IsLeaving = true
         State.CanClose = false
-        -- FIX: Shadow is now a child of NotificationFrame (see shadow parenting fix
-        -- above), so destroying NotificationFrame also destroys Shadow. The separate
-        -- Shadow:Destroy() pcall was redundant and could error if Shadow was already
-        -- gone.
         pcall(function() NotificationFrame:Destroy() end)
         local idx = table.find(Library.NotificationSystem.Notifications, State)
         if idx then table.remove(Library.NotificationSystem.Notifications, idx) end
@@ -275,10 +263,7 @@ local function CreateNotificationUI(Message, Type, Duration, CustomColor)
     end)
     
     table.insert(Library.NotificationSystem.Notifications, State)
-    
-    -- BUG FIX: The original while loop called RemoveNotification() which only
-    -- removes the *current* notif's State (closure capture). We need to evict
-    -- the oldest entries from the list instead.
+
     while #Library.NotificationSystem.Notifications > Library.NotificationSystem.MaxNotifications do
         local Oldest = Library.NotificationSystem.Notifications[1]
         if Oldest and not Oldest.IsLeaving then
@@ -303,12 +288,6 @@ function Library:Notify(Message, Type, Duration, CustomColor)
             self.NotificationSystem.Container.Name = "NotificationStack"
             self.NotificationSystem.Container.AutomaticSize = Enum.AutomaticSize.Y
             self.NotificationSystem.Container.Size = UDim2.new(0, 320, 0, 0)
-            -- FIX: AnchorPoint (1,0) anchors the RIGHT edge of the container to the
-            -- position point. With Position Scale X=1, this pins the right edge flush
-            -- to the right side of the screen (minus 20px padding). The old code had
-            -- AnchorPoint (0,0) which placed the LEFT edge at Scale X=1, pushing the
-            -- entire container off-screen to the right, causing Roblox to clamp it to
-            -- the bottom-left corner instead.
             self.NotificationSystem.Container.AnchorPoint = Vector2.new(1, 0)
             self.NotificationSystem.Container.Position = UDim2.new(1, -20, 0, 20)
             self.NotificationSystem.Container.BackgroundTransparency = 1
@@ -354,7 +333,6 @@ function Library:ClearAllNotifications()
     for _, Notification in ipairs(self.NotificationSystem.Notifications) do
         Notification.IsLeaving = true
         Notification.CanClose = false
-        -- FIX: Shadow is a child of Frame now, so destroying Frame is sufficient.
         pcall(function() Notification.Frame:Destroy() end)
     end
     self.NotificationSystem.Notifications = {}
@@ -514,10 +492,6 @@ function Library:ToggleWindow(Window, Value)
 end
 
 function Library:GetTheme(Key)
-    -- FIX: Original code read from disk on every single GetTheme call. Since
-    -- SetTheme already updates self.CurrentTheme and writes to disk, we only need
-    -- to do the file read once on cold start (handled by InitStyle/LoadStyle).
-    -- Removed the per-call FileManager:IsFile + ReadFile to eliminate heavy I/O.
     local Theme = Themes[self.CurrentTheme] or Themes.Dark
     return Theme[Key]
 end
@@ -584,8 +558,6 @@ function Library:TrackTheme(Object, Property, Key)
 end
 
 function Library:GetAccent(Key)
-    -- FIX: Same as GetTheme - removed per-call file I/O. SetAccent already keeps
-    -- self.CurrentAccent in sync, so we just use that directly.
     local Accent = Accents[self.CurrentAccent] or Accents.Blue
     return Accent[Key]
 end
@@ -829,9 +801,6 @@ local function AttachShadow(TargetInstance, CornerRadius, LayerCount, MaxSpread,
 
     local function SyncShadow()
         if not TargetInstance.Parent then return end
-        -- FIX: Added Visible check here too (not just in the body) so we skip the
-        -- tick() call and all AbsolutePosition reads when the frame is hidden,
-        -- rather than entering the function and returning after a property read.
         if not TargetInstance.Visible then return end
 
         local Now = tick()
@@ -1173,7 +1142,7 @@ function Library:CreateWindow(Options)
     Window.SideBar = SideBar
     Window.TitleHolder = TitleHolder
     Window.TabHolder = TabHolder
-    Window.Theme = self.CurrentTheme  -- FIX: ThemeName was undefined in this scope; use self.CurrentTheme
+    Window.Theme = self.CurrentTheme 
     Window.Open = true
 
     Window.ActiveTab = nil
@@ -1188,11 +1157,9 @@ function Library:CreateWindow(Options)
     return Window
 end
 
--- SetTitle: changes the sidebar title text at any time
--- Usage: Library:SetTitle(Window, "My Script")
-function Library:SetTitle(Window, NewName)
-    if Window and Window.TitleHolder then
-        Window.TitleHolder.Text = tostring(NewName or "")
+function Library:SetTitle(NewName)
+    if self.Window and self.Window.TitleHolder then
+        self.Window.TitleHolder.Text = tostring(NewName or "")
     end
 end
 
@@ -1286,9 +1253,6 @@ function Library:AddTab(Window, Config)
 
     Layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(UpdateCanvas)
     Content:GetPropertyChangedSignal("AbsoluteSize"):Connect(UpdateCanvas)
-    -- FIX: UpdateCanvas was never called on initial layout, so the canvas height
-    -- started at 0 until something triggered a content/size change. Defer a call
-    -- so it runs after the first render pass.
     task.defer(UpdateCanvas)
 
     local LayoutPadding = Instance.new("UIPadding")
@@ -1386,10 +1350,6 @@ function Library:AddTab(Window, Config)
 
         local PreviousTab = Window.ActiveTab
 
-        -- FIX: Replaced task.wait() + two RenderStepped:Wait() calls with a single
-        -- RenderStepped:Wait(). The extra task.wait() caused an unnecessary ~1 frame
-        -- yield before layout measurement, producing stale AbsolutePosition reads and
-        -- a visible stutter on fast tab switches.
         RunService.RenderStepped:Wait()
 
         Padding.PaddingLeft = UDim.new(0, 28)
@@ -1443,10 +1403,6 @@ function Library:AddTab(Window, Config)
         Content.Position = UDim2.new(0, 130, 0, 80)
         Content.CanvasPosition = Vector2.new(0, 0)
 
-        -- FIX: Removed the redundant second TweenService:Create() after
-        -- EnterContentTween.Completed:Wait(). It tweened to the exact same Position
-        -- that EnterContentTween already landed on, accomplishing nothing except
-        -- sometimes snapping the content frame due to a race condition.
         local EnterContentTween = TweenService:Create(
             Content,
             TweenInfo.new(0.26, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
@@ -1467,13 +1423,6 @@ function Library:AddTab(Window, Config)
 
     table.insert(Window.Tabs, Tab)
 
-    -- FIX: The original logic set IsFirstTab = false before the defer, then inside the
-    -- defer checked "if Window.IsFirstTab then return end" before setting it true.
-    -- That means on the FIRST tab added, IsFirstTab is false so it proceeds — correct.
-    -- But on every SUBSEQUENT tab, IsFirstTab is already true from the previous defer,
-    -- so it always returned early and never re-evaluated the best tab. The intent was
-    -- to run only once (after all tabs are added in the same frame), so we flip the
-    -- sentinel: set HasSelectedFirst=false on the window once, and use it properly.
     if Window.HasSelectedFirst == nil then
         Window.HasSelectedFirst = false
     end
@@ -1584,8 +1533,7 @@ function Library:AddModule(Tab, Config)
     Container.Position = UDim2.new(0, 0, 0, 32)
     Container.BackgroundTransparency = 1
     Container.ClipsDescendants = true
-    -- Hidden by default so children don't bleed through the collapsed module card.
-    -- Visibility is toggled in SetExpanded alongside the size tween.
+
     Container.Visible = false
     Container.Parent = Holder
 
@@ -1640,9 +1588,6 @@ function Library:AddModule(Tab, Config)
         local ExtraPadding = Module.Expanded and 8 or 0
         local TargetSizeY = Module.Expanded and (Layout.AbsoluteContentSize.Y + ExtraPadding) or 0
 
-        -- Show container before expanding so children appear during the tween.
-        -- Hide after collapsing so they don't sit invisibly in the layout and
-        -- inflate the scroll canvas height.
         if Module.Expanded then
             Container.Visible = true
         end
@@ -1686,8 +1631,7 @@ function Library:AddModule(Tab, Config)
     end)
 
     if ToolTipText then
-        -- Wrap tooltip in a clipped frame so its AutomaticSize width never
-        -- overflows the module card or contributes to the scroll canvas height.
+
         local ToolTipClip = Instance.new("Frame")
         ToolTipClip.Size = UDim2.new(1, -120, 0, 40)
         ToolTipClip.Position = UDim2.new(0, 0, 0, 0)
@@ -1718,7 +1662,7 @@ function Library:AddModule(Tab, Config)
         local function UpdateToolTipPosition()
             if Updating then return end
             Updating = true
-            -- Position the clip frame so it starts just after the module name label.
+
             local XOffset = Label.AbsolutePosition.X - Holder.AbsolutePosition.X + Label.AbsoluteSize.X + 8
             ToolTipClip.Position = UDim2.new(0, XOffset, 0, 0)
             ToolTipClip.Size = UDim2.new(1, -XOffset - 8, 0, 40)
@@ -1811,9 +1755,7 @@ function Library:AddParagraph(Tab, Config)
     UpdateSize()
 
     local DynamicText = nil
-    -- FIX: UpdateInterval was never defined in AddParagraph's scope (it belongs to
-    -- AddModule). Added a local default here so the OnUpdate loop doesn't call
-    -- task.wait(nil) which would throw an error.
+
     local UpdateInterval = Config.UpdateInterval or 0.1
 
     if Config.OnUpdate then
@@ -1989,9 +1931,6 @@ function Library:AddRadar(Tab, Config)
 
     local function RenderRadar()
         local RootPart
-        -- FIX: ResolvedCustomPath now stored separately so the iteration block below
-        -- can use the resolved value instead of re-calling the function or using the
-        -- raw (possibly function) CustomPath value.
         local ResolvedCustomPath = CustomPath and (type(CustomPath) == "function" and CustomPath() or CustomPath) or nil
 
         if CustomPath then
@@ -2765,7 +2704,7 @@ function Library:AddButton(Module, Config)
 
     local Text    = Config.Text    or "Button"
     local OnClick = Config.OnClick or function() end
-    local SubText = Config.SubText or nil  -- optional right-side label
+    local SubText = Config.SubText or nil  
 
     local Wrapper = Instance.new("Frame")
     Wrapper.Size = UDim2.new(1, 0, 0, 26)
@@ -2773,7 +2712,7 @@ function Library:AddButton(Module, Config)
     Wrapper.ClipsDescendants = false
     Wrapper.Parent = Module.Container
 
-    -- Pill background
+ 
     local Pill = Instance.new("Frame")
     Pill.Size = UDim2.new(1, -10, 1, 0)
     Pill.Position = UDim2.new(0, 10, 0, 0)
@@ -2786,7 +2725,7 @@ function Library:AddButton(Module, Config)
     PillCorner.CornerRadius = UDim.new(0, 6)
     PillCorner.Parent = Pill
 
-    -- Clickable button sits on top
+
     local Btn = Instance.new("TextButton")
     Btn.Size = UDim2.new(1, 0, 1, 0)
     Btn.BackgroundTransparency = 1
@@ -3118,7 +3057,7 @@ function Library:AddColorPicker(Module, Config)
     end)
 
     local PanelOpen = false
-    local PanelHeight = SvSize + 8 + 24 + 8  -- sv + gap + hex + bottom pad = 150
+    local PanelHeight = SvSize + 8 + 24 + 8  
 
     Swatch.MouseButton1Click:Connect(function()
         PanelOpen = not PanelOpen
@@ -3306,8 +3245,7 @@ function Library:AddSlider(Module, Config)
 
     Library:TrackTheme(ValueLabel, "TextColor3", "Text")
 
-    -- FIX: Renamed local variable from TweenInfo to SliderTweenInfo to avoid
-    -- shadowing the global TweenInfo constructor used throughout the rest of the file.
+
     local SliderTweenInfo = TweenInfo.new(0.07, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 
     local function TweenProperties(Instance, Properties)
