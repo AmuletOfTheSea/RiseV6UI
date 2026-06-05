@@ -1149,6 +1149,8 @@ function Library:CreateWindow(Options)
     TitleHolder.Parent = SideBar
     pcall(function() TitleHolder.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal) end)
 
+    Window.TitleHolder = TitleHolder
+
     self:TrackTheme(TitleHolder, "TextColor3", "Text")
 
     AttachTextShadow(TitleHolder, Vector2.new(1.2, 1.2), Color3.fromRGB(0, 0, 0), self:GetTheme("ShadowAlpha"), 2, -1)
@@ -1184,6 +1186,14 @@ function Library:CreateWindow(Options)
     self.Window = Window
 
     return Window
+end
+
+-- SetTitle: changes the sidebar title text at any time
+-- Usage: Library:SetTitle(Window, "My Script")
+function Library:SetTitle(Window, NewName)
+    if Window and Window.TitleHolder then
+        Window.TitleHolder.Text = tostring(NewName or "")
+    end
 end
 
 function Library:AddTab(Window, Config)
