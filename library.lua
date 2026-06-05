@@ -3702,4 +3702,61 @@ Library:RenderStepped(function()
     )
 end)
 
+-- ═══════════════════════════════════════════════════════════════════════════
+-- SEARCH SYSTEM INTEGRATION
+-- ═══════════════════════════════════════════════════════════════════════════
+
+function Library:CreateSearchBox(TabContainer, Config)
+    Config = Config or {}
+    
+    local SearchBox = Instance.new("TextBox")
+    SearchBox.Name = "SearchBox"
+    SearchBox.Size = UDim2.new(1, -20, 0, 35)
+    SearchBox.Position = UDim2.new(0, 10, 0, 10)
+    SearchBox.BackgroundColor3 = Config.BgColor or Color3.fromRGB(45, 45, 60)
+    SearchBox.BorderSizePixel = 0
+    SearchBox.TextSize = 14
+    SearchBox.TextColor3 = Config.TextColor or Color3.fromRGB(255, 255, 255)
+    SearchBox.PlaceholderText = Config.PlaceholderText or "🔍 Start typing to search..."
+    SearchBox.PlaceholderColor3 = Config.PlaceholderColor or Color3.fromRGB(150, 150, 170)
+    SearchBox.ClearTextOnFocus = false
+    SearchBox.Parent = TabContainer
+    
+    local Corner = Instance.new("UICorner")
+    Corner.CornerRadius = UDim.new(0, 8)
+    Corner.Parent = SearchBox
+    
+    local Padding = Instance.new("UIPadding")
+    Padding.PaddingLeft = UDim.new(0, 12)
+    Padding.PaddingRight = UDim.new(0, 12)
+    Padding.Parent = SearchBox
+    
+    return SearchBox
+end
+
+function Library:FilterModules(Modules, Query)
+    if not Query or Query == "" then
+        for _, Module in ipairs(Modules) do
+            if Module.Instance then
+                Module.Instance.Visible = true
+            end
+        end
+        return
+    end
+    
+    local QueryLower = Query:lower()
+    
+    for _, Module in ipairs(Modules) do
+        if Module.Instance then
+            local ModuleName = (Module.Name or ""):lower()
+            local ModuleDescription = (Module.Description or ""):lower()
+            
+            local Matches = string.find(ModuleName, QueryLower, 1, true) or 
+                            string.find(ModuleDescription, QueryLower, 1, true)
+            
+            Module.Instance.Visible = Matches ~= nil
+        end
+    end
+end
+
 return Library
