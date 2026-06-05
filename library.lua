@@ -3717,25 +3717,31 @@ function Library:CreateSearchBox(TabContainer, Config)
     
     local SearchBox = Instance.new("TextBox")
     SearchBox.Name = "SearchBox"
-    SearchBox.Size = UDim2.new(1, -20, 0, 35)
-    SearchBox.Position = UDim2.new(0, 10, 0, 10)
-    SearchBox.BackgroundColor3 = Config.BgColor or Color3.fromRGB(45, 45, 60)
+    SearchBox.Size = UDim2.new(1, -16, 0, 32)
+    SearchBox.Position = UDim2.new(0, 0, 0, 0)
+    SearchBox.LayoutOrder = -1
+    SearchBox.BackgroundColor3 = Config.BgColor or Color3.fromRGB(30, 30, 40)
     SearchBox.BorderSizePixel = 0
-    SearchBox.TextSize = 14
-    SearchBox.TextColor3 = Config.TextColor or Color3.fromRGB(255, 255, 255)
-    SearchBox.PlaceholderText = Config.PlaceholderText or "Start typing to search..."
-    SearchBox.PlaceholderColor3 = Config.PlaceholderColor or Color3.fromRGB(150, 150, 170)
+    SearchBox.TextSize = 13
+    SearchBox.TextColor3 = Config.TextColor or Color3.fromRGB(220, 220, 230)
+    SearchBox.PlaceholderText = Config.PlaceholderText or "Search modules..."
+    SearchBox.PlaceholderColor3 = Config.PlaceholderColor or Color3.fromRGB(120, 120, 140)
     SearchBox.ClearTextOnFocus = false
     SearchBox.Parent = Container
     
     local Corner = Instance.new("UICorner")
-    Corner.CornerRadius = UDim.new(0, 8)
+    Corner.CornerRadius = UDim.new(0, 6)
     Corner.Parent = SearchBox
     
     local Padding = Instance.new("UIPadding")
-    Padding.PaddingLeft = UDim.new(0, 12)
-    Padding.PaddingRight = UDim.new(0, 12)
+    Padding.PaddingLeft = UDim.new(0, 10)
+    Padding.PaddingRight = UDim.new(0, 10)
     Padding.Parent = SearchBox
+    
+    local Stroke = Instance.new("UIStroke")
+    Stroke.Color = Config.StrokeColor or Color3.fromRGB(60, 60, 80)
+    Stroke.Thickness = 1
+    Stroke.Parent = SearchBox
     
     return SearchBox
 end
