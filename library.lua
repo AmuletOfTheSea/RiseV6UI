@@ -1372,6 +1372,7 @@ function Library:AddTab(Window, Config)
     Tab.Button = Button
     Tab.Content = Content
     Tab.Icon = IconImage
+    Tab.Window = Window
 
     local Hovering = false
 
@@ -1801,20 +1802,8 @@ function Library:AddModule(Tab, Config)
         return Library:AddCarousel(self, Config)
     end
 
-    if Tab and Tab.Content and Tab.Content.Parent then
-        local Window = nil
-        local CurrentParent = Tab.Content.Parent
-        while CurrentParent and not Window do
-            if CurrentParent:FindFirstChild("TabHolder") then
-                Window = self.Window
-                break
-            end
-            CurrentParent = CurrentParent.Parent
-        end
-        
-        if Window and Window.RegisterModuleForSearch then
-            Window:RegisterModuleForSearch(Module)
-        end
+    if Tab and Tab.Window and Tab.Window.RegisterModuleForSearch then
+        Tab.Window:RegisterModuleForSearch(Module)
     end
 
     return Module
