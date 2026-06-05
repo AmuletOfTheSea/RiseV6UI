@@ -1546,9 +1546,10 @@ function Library:AddModule(Tab, Config)
     Container.Size = UDim2.new(1, -8, 0, 0)
     Container.Position = UDim2.new(0, 0, 0, 32)
     Container.BackgroundTransparency = 1
-    -- FIX: ClipsDescendants was true, which clipped the toggle accent dot and slider
-    -- handle shadow layers that need to visually overflow the container edge.
-    Container.ClipsDescendants = false
+    Container.ClipsDescendants = true
+    -- Hidden by default so children don't bleed through the collapsed module card.
+    -- Visibility is toggled in SetExpanded alongside the size tween.
+    Container.Visible = false
     Container.Parent = Holder
 
     local Layout = Instance.new("UIListLayout")
@@ -1602,13 +1603,28 @@ function Library:AddModule(Tab, Config)
         local ExtraPadding = Module.Expanded and 8 or 0
         local TargetSizeY = Module.Expanded and (Layout.AbsoluteContentSize.Y + ExtraPadding) or 0
 
-        TweenService:Create(
+        -- Show container before expanding so children appear during the tween.
+        -- Hide after collapsing so they don't sit invisibly in the layout and
+        -- inflate the scroll canvas height.
+        if Module.Expanded then
+            Container.Visible = true
+        end
+
+        local Tween = TweenService:Create(
             Container,
             TweenInfo.new(0.22, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
             {
                 Size = UDim2.new(1, -8, 0, TargetSizeY)
             }
-        ):Play()
+        )
+
+        Tween:Play()
+
+        if not Module.Expanded then
+            Tween.Completed:Connect(function()
+                Container.Visible = false
+            end)
+        end
     end
 
     function Module:SetExpanded(State)
@@ -1633,23 +1649,31 @@ function Library:AddModule(Tab, Config)
     end)
 
     if ToolTipText then
+        -- Wrap tooltip in a clipped frame so its AutomaticSize width never
+        -- overflows the module card or contributes to the scroll canvas height.
+        local ToolTipClip = Instance.new("Frame")
+        ToolTipClip.Size = UDim2.new(1, -120, 0, 40)
+        ToolTipClip.Position = UDim2.new(0, 0, 0, 0)
+        ToolTipClip.BackgroundTransparency = 1
+        ToolTipClip.ClipsDescendants = true
+        ToolTipClip.Parent = Holder
 
         local ToolTipLabel = Instance.new("TextLabel")
         ToolTipLabel.BackgroundTransparency = 1
         ToolTipLabel.Text = ToolTipText
-        ToolTipLabel.TextSize = 16
+        ToolTipLabel.TextSize = 14
         ToolTipLabel.Visible = true
-        ToolTipLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
-        ToolTipLabel.TextTransparency = 0.2
-        ToolTipLabel.Size = UDim2.new(0, 0, 0, 40)
-        ToolTipLabel.AutomaticSize = Enum.AutomaticSize.X
-        ToolTipLabel.Parent = Holder
-        pcall(function() ToolTipLabel.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal) end)
+        ToolTipLabel.TextTransparency = 0.35
+        ToolTipLabel.Size = UDim2.new(1, 0, 1, 0)
+        ToolTipLabel.TextXAlignment = Enum.TextXAlignment.Left
+        ToolTipLabel.TextTruncate = Enum.TextTruncate.AtEnd
+        ToolTipLabel.Parent = ToolTipClip
+        pcall(function() ToolTipLabel.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Regular, Enum.FontStyle.Normal) end)
 
         self:TrackTheme(ToolTipLabel, "TextColor3", "Text")
 
         local ToolTipPadding = Instance.new("UIPadding")
-        ToolTipPadding.PaddingTop = UDim.new(0, 4)
+        ToolTipPadding.PaddingLeft = UDim.new(0, 4)
         ToolTipPadding.Parent = ToolTipLabel
 
         local Updating = false
@@ -1657,10 +1681,10 @@ function Library:AddModule(Tab, Config)
         local function UpdateToolTipPosition()
             if Updating then return end
             Updating = true
-
-            local XOffset = Label.AbsolutePosition.X - Holder.AbsolutePosition.X + Label.AbsoluteSize.X + 6
-            ToolTipLabel.Position = UDim2.new(0, XOffset, 0, 0)
-
+            -- Position the clip frame so it starts just after the module name label.
+            local XOffset = Label.AbsolutePosition.X - Holder.AbsolutePosition.X + Label.AbsoluteSize.X + 8
+            ToolTipClip.Position = UDim2.new(0, XOffset, 0, 0)
+            ToolTipClip.Size = UDim2.new(1, -XOffset - 8, 0, 40)
             Updating = false
         end
 
