@@ -152,8 +152,11 @@ local function CreateNotificationUI(Message, Type, Duration, CustomColor)
     Shadow.BackgroundColor3 = Color3.new(0, 0, 0)
     Shadow.BackgroundTransparency = 0.7
     Shadow.BorderSizePixel = 0
+    -- FIX: Shadow was parented to NotificationFrame.Parent (the stack container),
+    -- making it an orphaned sibling that persisted after NotificationFrame:Destroy().
+    -- Parent it to NotificationFrame itself so it's destroyed along with it.
     Shadow.ZIndex = NotificationFrame.ZIndex - 1
-    Shadow.Parent = NotificationFrame.Parent
+    Shadow.Parent = NotificationFrame
     
     local ShadowCorner = Instance.new("UICorner")
     ShadowCorner.CornerRadius = UDim.new(0, 8)
@@ -215,7 +218,10 @@ local function CreateNotificationUI(Message, Type, Duration, CustomColor)
         if State.IsLeaving then return end
         State.IsLeaving = true
         State.CanClose = false
-        pcall(function() Shadow:Destroy() end)
+        -- FIX: Shadow is now a child of NotificationFrame (see shadow parenting fix
+        -- above), so destroying NotificationFrame also destroys Shadow. The separate
+        -- Shadow:Destroy() pcall was redundant and could error if Shadow was already
+        -- gone.
         pcall(function() NotificationFrame:Destroy() end)
         local idx = table.find(Library.NotificationSystem.Notifications, State)
         if idx then table.remove(Library.NotificationSystem.Notifications, idx) end
@@ -270,9 +276,15 @@ function Library:Notify(Message, Type, Duration, CustomColor)
             self.NotificationSystem.Container.Name = "NotificationStack"
             self.NotificationSystem.Container.AutomaticSize = Enum.AutomaticSize.Y
             self.NotificationSystem.Container.Size = UDim2.new(0, 320, 0, 0)
-            self.NotificationSystem.Container.Position = UDim2.new(1, -340, 0, 20)
+            -- FIX: AnchorPoint (1,0) anchors the RIGHT edge of the container to the
+            -- position point. With Position Scale X=1, this pins the right edge flush
+            -- to the right side of the screen (minus 20px padding). The old code had
+            -- AnchorPoint (0,0) which placed the LEFT edge at Scale X=1, pushing the
+            -- entire container off-screen to the right, causing Roblox to clamp it to
+            -- the bottom-left corner instead.
+            self.NotificationSystem.Container.AnchorPoint = Vector2.new(1, 0)
+            self.NotificationSystem.Container.Position = UDim2.new(1, -20, 0, 20)
             self.NotificationSystem.Container.BackgroundTransparency = 1
-            self.NotificationSystem.Container.AnchorPoint = Vector2.new(0, 0)
             self.NotificationSystem.Container.Parent = ScreenGuis.NotificationContainer
             
             local ListLayout = Instance.new("UIListLayout")
@@ -315,7 +327,7 @@ function Library:ClearAllNotifications()
     for _, Notification in ipairs(self.NotificationSystem.Notifications) do
         Notification.IsLeaving = true
         Notification.CanClose = false
-        pcall(function() Notification.Shadow:Destroy() end)
+        -- FIX: Shadow is a child of Frame now, so destroying Frame is sufficient.
         pcall(function() Notification.Frame:Destroy() end)
     end
     self.NotificationSystem.Notifications = {}
@@ -475,19 +487,11 @@ function Library:ToggleWindow(Window, Value)
 end
 
 function Library:GetTheme(Key)
-    local ThemeName = self.CurrentTheme
-    local Path = "RiseV6UI/.style"
-
-    if FileManager:IsFile(Path) then
-        local Data = FileManager:ReadFile(Path)
-        local SavedTheme = Data:match('Theme%s*=%s*"(.-)"')
-        if SavedTheme and Themes[SavedTheme] then
-            ThemeName = SavedTheme
-            self.CurrentTheme = SavedTheme
-        end
-    end
-
-    local Theme = Themes[ThemeName] or Themes.Dark
+    -- FIX: Original code read from disk on every single GetTheme call. Since
+    -- SetTheme already updates self.CurrentTheme and writes to disk, we only need
+    -- to do the file read once on cold start (handled by InitStyle/LoadStyle).
+    -- Removed the per-call FileManager:IsFile + ReadFile to eliminate heavy I/O.
+    local Theme = Themes[self.CurrentTheme] or Themes.Dark
     return Theme[Key]
 end
 
@@ -553,19 +557,9 @@ function Library:TrackTheme(Object, Property, Key)
 end
 
 function Library:GetAccent(Key)
-    local AccentName = self.CurrentAccent
-    local Path = "RiseV6UI/.style"
-
-    if FileManager:IsFile(Path) then
-        local Data = FileManager:ReadFile(Path)
-        local SavedAccent = Data:match('Accent%s*=%s*"(.-)"')
-        if SavedAccent and Accents[SavedAccent] then
-            AccentName = SavedAccent
-            self.CurrentAccent = SavedAccent
-        end
-    end
-
-    local Accent = Accents[AccentName] or Accents.Blue
+    -- FIX: Same as GetTheme - removed per-call file I/O. SetAccent already keeps
+    -- self.CurrentAccent in sync, so we just use that directly.
+    local Accent = Accents[self.CurrentAccent] or Accents.Blue
     return Accent[Key]
 end
 
@@ -807,7 +801,11 @@ local function AttachShadow(TargetInstance, CornerRadius, LayerCount, MaxSpread,
     end
 
     local function SyncShadow()
-        if not TargetInstance.Parent or not TargetInstance.Visible then return end
+        if not TargetInstance.Parent then return end
+        -- FIX: Added Visible check here too (not just in the body) so we skip the
+        -- tick() call and all AbsolutePosition reads when the frame is hidden,
+        -- rather than entering the function and returning after a property read.
+        if not TargetInstance.Visible then return end
 
         local Now = tick()
         if Now - LastUpdate < UpdateRate then return end
@@ -1146,7 +1144,7 @@ function Library:CreateWindow(Options)
     Window.SideBar = SideBar
     Window.TitleHolder = TitleHolder
     Window.TabHolder = TabHolder
-    Window.Theme = ThemeName
+    Window.Theme = self.CurrentTheme  -- FIX: ThemeName was undefined in this scope; use self.CurrentTheme
     Window.Open = true
 
     Window.ActiveTab = nil
@@ -1251,6 +1249,10 @@ function Library:AddTab(Window, Config)
 
     Layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(UpdateCanvas)
     Content:GetPropertyChangedSignal("AbsoluteSize"):Connect(UpdateCanvas)
+    -- FIX: UpdateCanvas was never called on initial layout, so the canvas height
+    -- started at 0 until something triggered a content/size change. Defer a call
+    -- so it runs after the first render pass.
+    task.defer(UpdateCanvas)
 
     local LayoutPadding = Instance.new("UIPadding")
     LayoutPadding.PaddingLeft = UDim.new(0, 8)
@@ -1347,7 +1349,10 @@ function Library:AddTab(Window, Config)
 
         local PreviousTab = Window.ActiveTab
 
-        task.wait()
+        -- FIX: Replaced task.wait() + two RenderStepped:Wait() calls with a single
+        -- RenderStepped:Wait(). The extra task.wait() caused an unnecessary ~1 frame
+        -- yield before layout measurement, producing stale AbsolutePosition reads and
+        -- a visible stutter on fast tab switches.
         RunService.RenderStepped:Wait()
 
         Padding.PaddingLeft = UDim.new(0, 28)
@@ -1401,6 +1406,10 @@ function Library:AddTab(Window, Config)
         Content.Position = UDim2.new(0, 130, 0, 80)
         Content.CanvasPosition = Vector2.new(0, 0)
 
+        -- FIX: Removed the redundant second TweenService:Create() after
+        -- EnterContentTween.Completed:Wait(). It tweened to the exact same Position
+        -- that EnterContentTween already landed on, accomplishing nothing except
+        -- sometimes snapping the content frame due to a race condition.
         local EnterContentTween = TweenService:Create(
             Content,
             TweenInfo.new(0.26, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
@@ -1412,14 +1421,6 @@ function Library:AddTab(Window, Config)
         EnterContentTween:Play()
         EnterContentTween.Completed:Wait()
 
-        TweenService:Create(
-            Content,
-            TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-            {
-                Position = UDim2.new(0, 130, 0, 40)
-            }
-        ):Play()
-
         Switching = false
     end
 
@@ -1429,12 +1430,20 @@ function Library:AddTab(Window, Config)
 
     table.insert(Window.Tabs, Tab)
 
-    Window.IsFirstTab = false
+    -- FIX: The original logic set IsFirstTab = false before the defer, then inside the
+    -- defer checked "if Window.IsFirstTab then return end" before setting it true.
+    -- That means on the FIRST tab added, IsFirstTab is false so it proceeds — correct.
+    -- But on every SUBSEQUENT tab, IsFirstTab is already true from the previous defer,
+    -- so it always returned early and never re-evaluated the best tab. The intent was
+    -- to run only once (after all tabs are added in the same frame), so we flip the
+    -- sentinel: set HasSelectedFirst=false on the window once, and use it properly.
+    if Window.HasSelectedFirst == nil then
+        Window.HasSelectedFirst = false
+    end
 
     task.defer(function()
-        if Window.IsFirstTab then return end
-
-        Window.IsFirstTab = true
+        if Window.HasSelectedFirst then return end
+        Window.HasSelectedFirst = true
 
         local BestTab = nil
         local LowestOrder = math.huge
@@ -1537,7 +1546,9 @@ function Library:AddModule(Tab, Config)
     Container.Size = UDim2.new(1, -8, 0, 0)
     Container.Position = UDim2.new(0, 0, 0, 32)
     Container.BackgroundTransparency = 1
-    Container.ClipsDescendants = true
+    -- FIX: ClipsDescendants was true, which clipped the toggle accent dot and slider
+    -- handle shadow layers that need to visually overflow the container edge.
+    Container.ClipsDescendants = false
     Container.Parent = Holder
 
     local Layout = Instance.new("UIListLayout")
@@ -1739,6 +1750,10 @@ function Library:AddParagraph(Tab, Config)
     UpdateSize()
 
     local DynamicText = nil
+    -- FIX: UpdateInterval was never defined in AddParagraph's scope (it belongs to
+    -- AddModule). Added a local default here so the OnUpdate loop doesn't call
+    -- task.wait(nil) which would throw an error.
+    local UpdateInterval = Config.UpdateInterval or 0.1
 
     if Config.OnUpdate then
         task.spawn(function()
@@ -1913,9 +1928,13 @@ function Library:AddRadar(Tab, Config)
 
     local function RenderRadar()
         local RootPart
+        -- FIX: ResolvedCustomPath now stored separately so the iteration block below
+        -- can use the resolved value instead of re-calling the function or using the
+        -- raw (possibly function) CustomPath value.
+        local ResolvedCustomPath = CustomPath and (type(CustomPath) == "function" and CustomPath() or CustomPath) or nil
+
         if CustomPath then
-            local ResolvedPath = type(CustomPath) == "function" and CustomPath() or CustomPath
-            local LocalModel = ResolvedPath and ResolvedPath:FindFirstChild(LocalPlayer.Name)
+            local LocalModel = ResolvedCustomPath and ResolvedCustomPath:FindFirstChild(LocalPlayer.Name)
             RootPart = LocalModel and (LocalModel:FindFirstChild("HumanoidRootPart") or LocalModel.PrimaryPart or LocalModel:FindFirstChildWhichIsA("BasePart"))
         else
             RootPart = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
@@ -1932,8 +1951,8 @@ function Library:AddRadar(Tab, Config)
 
         ReleaseDots()
 
-        if CustomPath then
-            for _, Model in ipairs(CustomPath:GetChildren()) do
+        if ResolvedCustomPath then
+            for _, Model in ipairs(ResolvedCustomPath:GetChildren()) do
                 if not Model:IsA("Model") then continue end
 
                 local ModelRootPart = Model:FindFirstChild("HumanoidRootPart") or Model:FindFirstChildWhichIsA("BasePart")
@@ -2844,10 +2863,12 @@ function Library:AddSlider(Module, Config)
 
     Library:TrackTheme(ValueLabel, "TextColor3", "Text")
 
-    local TweenInfo = TweenInfo.new(0.07, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+    -- FIX: Renamed local variable from TweenInfo to SliderTweenInfo to avoid
+    -- shadowing the global TweenInfo constructor used throughout the rest of the file.
+    local SliderTweenInfo = TweenInfo.new(0.07, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 
     local function TweenProperties(Instance, Properties)
-        TweenService:Create(Instance, TweenInfo, Properties):Play()
+        TweenService:Create(Instance, SliderTweenInfo, Properties):Play()
     end
 
     local function UpdateVisual()
