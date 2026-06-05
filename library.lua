@@ -3709,6 +3709,12 @@ end)
 function Library:CreateSearchBox(TabContainer, Config)
     Config = Config or {}
     
+    -- Handle both Tab object and Instance
+    local Container = TabContainer
+    if TabContainer and TabContainer.Content then
+        Container = TabContainer.Content
+    end
+    
     local SearchBox = Instance.new("TextBox")
     SearchBox.Name = "SearchBox"
     SearchBox.Size = UDim2.new(1, -20, 0, 35)
@@ -3717,10 +3723,10 @@ function Library:CreateSearchBox(TabContainer, Config)
     SearchBox.BorderSizePixel = 0
     SearchBox.TextSize = 14
     SearchBox.TextColor3 = Config.TextColor or Color3.fromRGB(255, 255, 255)
-    SearchBox.PlaceholderText = Config.PlaceholderText or "🔍 Start typing to search..."
+    SearchBox.PlaceholderText = Config.PlaceholderText or "Start typing to search..."
     SearchBox.PlaceholderColor3 = Config.PlaceholderColor or Color3.fromRGB(150, 150, 170)
     SearchBox.ClearTextOnFocus = false
-    SearchBox.Parent = TabContainer
+    SearchBox.Parent = Container
     
     local Corner = Instance.new("UICorner")
     Corner.CornerRadius = UDim.new(0, 8)
