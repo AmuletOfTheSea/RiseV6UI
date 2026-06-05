@@ -1513,7 +1513,7 @@ function Library:AddModule(Tab, Config)
     Button.Parent = Holder
 
     local Label = Instance.new("TextLabel")
-    Label.Size = UDim2.new(0, 0, 1, 0)
+    Label.Size = UDim2.new(0, 0, 0, 40)
     Label.BackgroundTransparency = 1
     Label.Text = Name
     Label.TextSize = 20
@@ -3918,7 +3918,7 @@ local function SetState(State)
         ModalButton.Modal = true
 
         UserInputService.MouseBehavior = Enum.MouseBehavior.Default
-        UserInputService.MouseIconEnabled = false
+        -- Do NOT hide MouseIconEnabled; custom dot renders on top
 
         Cursor.Visible = true
     else
@@ -3927,8 +3927,7 @@ local function SetState(State)
 
         task.defer(function()
             ScreenGuis.MouseUnlockerUI.Enabled = false
-            UserInputService.MouseBehavior = Enum.MouseBehavior.Default
-            UserInputService.MouseIconEnabled = true
+            UserInputService.MouseBehavior = PreviousMouseBehavior
             Cursor.Visible = false
         end)
     end
