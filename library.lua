@@ -4153,6 +4153,10 @@ end
 
 
 
+local Window = Library:CreateWindow({
+    Name = "Perseus"
+})
+
 local StyleTab = Window:AddTab({
     Name = "Style",
     Icon = Assets:GetImage("Icons/Palette.png")
