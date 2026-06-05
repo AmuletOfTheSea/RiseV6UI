@@ -3107,11 +3107,13 @@ function Library:AddColorPicker(Module, Config)
 
     local PanelOpen = false
     local PanelHeight = SvSize + 8 + 24 + 8  -- sv + gap + hex + bottom pad = 150
+    
+    -- Set wrapper to always be full size to prevent layout thrashing during drag
+    Wrapper.Size = UDim2.new(1, 0, 0, 28 + PanelHeight)
 
     Swatch.MouseButton1Click:Connect(function()
         PanelOpen = not PanelOpen
         Panel.Visible = PanelOpen
-        Wrapper.Size = UDim2.new(1, 0, 0, PanelOpen and (28 + PanelHeight) or 28)
     end)
 
     UpdateAll()
