@@ -1215,33 +1215,29 @@ function Library:CreateWindow(Options)
     Window.ActiveTab = nil
     Window.TabTitle = TabTitle
 
-    function Window:AddTab(Config)
-        return Library:AddTab(self, Config)
-    end
-
     local AllModules = {}
-    local OriginalVisibility = {}
-
     SearchBox.Changed:Connect(function(Property)
         if Property == "Text" then
             local Query = SearchBox.Text:lower()
-
             if Query == "" then
-                for Module, Original in pairs(OriginalVisibility) do
-                    Module.Container.Visible = Original
+                for Module in pairs(AllModules) do
+                    Module.Holder.Visible = true
                 end
             else
-                for Module, _ in pairs(AllModules) do
-                    local ModuleName = Module.Container.Name:lower()
-                    Module.Container.Visible = ModuleName:find(Query, 1, true) ~= nil
+                for Module in pairs(AllModules) do
+                    local ModuleName = Module.Name:lower()
+                    Module.Holder.Visible = ModuleName:find(Query, 1, true) ~= nil
                 end
             end
         end
     end)
 
-    Window.RegisterModuleForSearch = function(Module)
+    function Window:RegisterModule(Module)
         AllModules[Module] = true
-        OriginalVisibility[Module] = Module.Container.Visible
+    end
+
+    function Window:AddTab(Config)
+        return Library:AddTab(self, Config)
     end
 
     self.Window = Window
@@ -1652,6 +1648,10 @@ function Library:AddModule(Tab, Config)
     Module.Button = Button
     Module.Holder = Holder
 
+    if Tab and Tab.Window and Tab.Window.RegisterModule then
+        Tab.Window:RegisterModule(Module)
+    end
+
     local function UpdateVisual()
         Library:Untrack(Label, "TextColor3")
 
@@ -1800,10 +1800,6 @@ function Library:AddModule(Tab, Config)
 
     function Module:AddCarousel(Config)
         return Library:AddCarousel(self, Config)
-    end
-
-    if Tab and Tab.Window and Tab.Window.RegisterModuleForSearch then
-        Tab.Window:RegisterModuleForSearch(Module)
     end
 
     return Module
