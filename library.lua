@@ -1,8 +1,41 @@
-local Assets = loadstring(game:HttpGet("https://raw.githubusercontent.com/AmuletOfTheSea/RiseV6UI/main/Systems/AssetLoader.lua"))()
-local Themes = loadstring(game:HttpGet("https://raw.githubusercontent.com/AmuletOfTheSea/RiseV6UI/main/UI/Themes.lua"))()
-local Accents = loadstring(game:HttpGet("https://raw.githubusercontent.com/AmuletOfTheSea/RiseV6UI/main/UI/Accents.lua"))()
-local FileManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/AmuletOfTheSea/RiseV6UI/main/Systems/FileManager.lua"))()
-local ConfigSystemFactory = loadstring(game:HttpGet("https://raw.githubusercontent.com/AmuletOfTheSea/RiseV6UI/main/Systems/ConfigSystem.lua"))()
+-- Load dependencies with error handling
+local Assets, Themes, Accents, FileManager, ConfigSystemFactory
+
+local function loadDependency(name, url)
+    local ok, result = pcall(function()
+        return loadstring(game:HttpGet(url))()
+    end)
+    if ok and result then
+        print("✓ Loaded " .. name)
+        return result
+    else
+        print("✗ Failed to load " .. name)
+        print("  URL: " .. url)
+        print("  Error: " .. tostring(result))
+        return nil
+    end
+end
+
+print("Loading dependencies...")
+Assets = loadDependency("AssetLoader", "https://raw.githubusercontent.com/AmuletOfTheSea/RiseV6UI/main/Systems/AssetLoader.lua")
+Themes = loadDependency("Themes", "https://raw.githubusercontent.com/AmuletOfTheSea/RiseV6UI/main/UI/Themes.lua")
+Accents = loadDependency("Accents", "https://raw.githubusercontent.com/AmuletOfTheSea/RiseV6UI/main/UI/Accents.lua")
+FileManager = loadDependency("FileManager", "https://raw.githubusercontent.com/AmuletOfTheSea/RiseV6UI/main/Systems/FileManager.lua")
+ConfigSystemFactory = loadDependency("ConfigSystem", "https://raw.githubusercontent.com/AmuletOfTheSea/RiseV6UI/main/Systems/ConfigSystem.lua")
+
+-- Check which ones failed
+local failedDeps = {}
+if not Assets then table.insert(failedDeps, "AssetLoader") end
+if not Themes then table.insert(failedDeps, "Themes") end
+if not Accents then table.insert(failedDeps, "Accents") end
+if not FileManager then table.insert(failedDeps, "FileManager") end
+if not ConfigSystemFactory then table.insert(failedDeps, "ConfigSystem") end
+
+if #failedDeps > 0 then
+    error("Failed to load dependencies: " .. table.concat(failedDeps, ", ") .. "\nCheck your internet connection or GitHub access.")
+end
+
+print("All dependencies loaded successfully!\n")
 
 local CoreGui = game:GetService("CoreGui")
 local UserInputService = game:GetService("UserInputService")
