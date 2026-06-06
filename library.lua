@@ -1,41 +1,8 @@
--- Load dependencies with error handling
-local Assets, Themes, Accents, FileManager, ConfigSystemFactory
-
-local function loadDependency(name, url)
-    local ok, result = pcall(function()
-        return loadstring(game:HttpGet(url))()
-    end)
-    if ok and result then
-        print("✓ Loaded " .. name)
-        return result
-    else
-        print("✗ Failed to load " .. name)
-        print("  URL: " .. url)
-        print("  Error: " .. tostring(result))
-        return nil
-    end
-end
-
-print("Loading dependencies...")
-Assets = loadDependency("AssetLoader", "https://raw.githubusercontent.com/AmuletOfTheSea/RiseV6UI/main/Systems/AssetLoader.lua")
-Themes = loadDependency("Themes", "https://raw.githubusercontent.com/AmuletOfTheSea/RiseV6UI/main/UI/Themes.lua")
-Accents = loadDependency("Accents", "https://raw.githubusercontent.com/AmuletOfTheSea/RiseV6UI/main/UI/Accents.lua")
-FileManager = loadDependency("FileManager", "https://raw.githubusercontent.com/AmuletOfTheSea/RiseV6UI/main/Systems/FileManager.lua")
-ConfigSystemFactory = loadDependency("ConfigSystem", "https://raw.githubusercontent.com/AmuletOfTheSea/RiseV6UI/main/Systems/ConfigSystem.lua")
-
--- Check which ones failed
-local failedDeps = {}
-if not Assets then table.insert(failedDeps, "AssetLoader") end
-if not Themes then table.insert(failedDeps, "Themes") end
-if not Accents then table.insert(failedDeps, "Accents") end
-if not FileManager then table.insert(failedDeps, "FileManager") end
-if not ConfigSystemFactory then table.insert(failedDeps, "ConfigSystem") end
-
-if #failedDeps > 0 then
-    error("Failed to load dependencies: " .. table.concat(failedDeps, ", ") .. "\nCheck your internet connection or GitHub access.")
-end
-
-print("All dependencies loaded successfully!\n")
+local Assets = loadstring(game:HttpGet("https://raw.githubusercontent.com/AmuletOfTheSea/RiseV6UI/main/Systems/AssetLoader.lua"))()
+local Themes = loadstring(game:HttpGet("https://raw.githubusercontent.com/AmuletOfTheSea/RiseV6UI/main/UI/Themes.lua"))()
+local Accents = loadstring(game:HttpGet("https://raw.githubusercontent.com/AmuletOfTheSea/RiseV6UI/main/UI/Accents.lua"))()
+local FileManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/AmuletOfTheSea/RiseV6UI/main/Systems/FileManager.lua"))()
+local ConfigSystemFactory = loadstring(game:HttpGet("https://raw.githubusercontent.com/AmuletOfTheSea/RiseV6UI/main/Systems/ConfigSystem.lua"))()
 
 local CoreGui = game:GetService("CoreGui")
 local UserInputService = game:GetService("UserInputService")
@@ -108,33 +75,7 @@ local Library = {
     Flags = {},
     Modules = {},
     Labels = {},
-    Toggles = {},
-    ModuleKeybinds = {},
-    CurrentAnimationPreset = "Smooth"
-}
-
--- Animation Presets for Tweens
-local AnimationPresets = {
-    Smooth = {
-        Duration = 0.3,
-        EasingStyle = Enum.EasingStyle.Quad,
-        EasingDirection = Enum.EasingDirection.Out
-    },
-    Snappy = {
-        Duration = 0.15,
-        EasingStyle = Enum.EasingStyle.Back,
-        EasingDirection = Enum.EasingDirection.Out
-    },
-    Instant = {
-        Duration = 0,
-        EasingStyle = Enum.EasingStyle.Linear,
-        EasingDirection = Enum.EasingDirection.In
-    },
-    Elastic = {
-        Duration = 0.6,
-        EasingStyle = Enum.EasingStyle.Elastic,
-        EasingDirection = Enum.EasingDirection.Out
-    }
+    Toggles = {}
 }
 
 
@@ -706,8 +647,7 @@ function Library:SaveStyle()
 
     local Data =
         'Theme = "' .. tostring(self.CurrentTheme or "Dark") .. '"\n' ..
-        'Accent = "' .. tostring(self.CurrentAccent or "Blue") .. '"\n' ..
-        'AnimationPreset = "' .. tostring(self.CurrentAnimationPreset or "Smooth") .. '"'
+        'Accent = "' .. tostring(self.CurrentAccent or "Blue") .. '"'
 
     FileManager:WriteFile(Path, Data)
 end
@@ -723,7 +663,6 @@ function Library:LoadStyle()
 
     local Theme = Data:match('Theme%s*=%s*"(.-)"')
     local Accent = Data:match('Accent%s*=%s*"(.-)"')
-    local AnimPreset = Data:match('AnimationPreset%s*=%s*"(.-)"')
 
     if Theme and Themes[Theme] then
         self.CurrentTheme = Theme
@@ -731,10 +670,6 @@ function Library:LoadStyle()
 
     if Accent and Accents[Accent] then
         self.CurrentAccent = Accent
-    end
-
-    if AnimPreset and AnimationPresets[AnimPreset] then
-        self.CurrentAnimationPreset = AnimPreset
     end
 
     for i = 1, #self.ThemeObjects do
@@ -773,19 +708,8 @@ function Library:InitStyle()
     else
         self.CurrentTheme = "Dark"
         self.CurrentAccent = "Blue"
-        self.CurrentAnimationPreset = "Smooth"
         self:SaveStyle()
     end
-end
-
--- Get TweenInfo based on current animation preset
-function Library:GetTweenInfo()
-    local preset = AnimationPresets[self.CurrentAnimationPreset] or AnimationPresets.Smooth
-    return TweenInfo.new(
-        preset.Duration,
-        preset.EasingStyle,
-        preset.EasingDirection
-    )
 end
 
 Library:InitStyle()
@@ -1735,142 +1659,7 @@ function Library:AddModule(Tab, Config)
 
     UpdateVisual()
 
-    -- Automatically add Keybind Setting
-    local KeybindLabel = Instance.new("TextLabel")
-    KeybindLabel.Size = UDim2.new(1, -8, 0, 25)
-    KeybindLabel.BackgroundTransparency = 1
-    KeybindLabel.Text = "Keybind: "
-    KeybindLabel.TextSize = 14
-    KeybindLabel.TextXAlignment = Enum.TextXAlignment.Left
-    KeybindLabel.TextYAlignment = Enum.TextYAlignment.Center
-    pcall(function() KeybindLabel.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.SemiBold, Enum.FontStyle.Normal) end)
-    KeybindLabel.Parent = Container
-    
-    Library:TrackTheme(KeybindLabel, "TextColor3", "Text")
-
-    local KeybindDisplay = Instance.new("TextButton")
-    KeybindDisplay.Size = UDim2.new(0, 80, 0, 25)
-    KeybindDisplay.Position = UDim2.new(1, -88, 0, 0)
-    KeybindDisplay.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
-    KeybindDisplay.BorderSizePixel = 0
-    KeybindDisplay.Text = "[NOT SET]"
-    KeybindDisplay.TextSize = 12
-    KeybindDisplay.ZIndex = 3
-    KeybindDisplay.Parent = Container
-    
-    Library:TrackTheme(KeybindDisplay, "BackgroundColor3", "Input")
-    Library:TrackTheme(KeybindDisplay, "TextColor3", "Text")
-
-    local KeybindCorner = Instance.new("UICorner")
-    KeybindCorner.CornerRadius = UDim.new(0, 6)
-    KeybindCorner.Parent = KeybindDisplay
-
-    -- Store keybind for this module
-    local ModuleKeybind = nil
-    Library.ModuleKeybinds[Flag] = {
-        Display = KeybindDisplay,
-        Keybind = ModuleKeybind,
-        Module = Module
-    }
-
-    local IsListeningForInput = false
-
-    local function UpdateKeybindDisplay()
-        if ModuleKeybind then
-            local KeyName = ModuleKeybind.Name or "?"
-            KeybindDisplay.Text = "[" .. KeyName .. "]"
-        else
-            KeybindDisplay.Text = "[NOT SET]"
-        end
-    end
-
-    KeybindDisplay.MouseButton1Click:Connect(function()
-        if IsListeningForInput then return end
-        IsListeningForInput = true
-        KeybindDisplay.Text = "[...]"
-
-        local InputConnection
-        InputConnection = UserInputService.InputBegan:Connect(function(Input, GameProcessed)
-            if GameProcessed then return end
-
-            InputConnection:Disconnect()
-            IsListeningForInput = false
-
-            if Input.KeyCode ~= Enum.KeyCode.Escape then
-                ModuleKeybind = Input.KeyCode
-                Library.ModuleKeybinds[Flag].Keybind = ModuleKeybind
-                
-                -- Save keybind to file
-                local Path = "RiseV6UI/.keybinds"
-                FileManager:CreateFolder("RiseV6UI")
-                local KeybindData = Library.ModuleKeybinds[Flag].Keybind and tostring(Library.ModuleKeybinds[Flag].Keybind.Name) or "NONE"
-                local AllKeybinds = ""
-                for ModuleFlag, Data in pairs(Library.ModuleKeybinds) do
-                    AllKeybinds = AllKeybinds .. ModuleFlag .. '="' .. (Data.Keybind and tostring(Data.Keybind.Name) or "NONE") .. '"\n'
-                end
-                FileManager:WriteFile(Path, AllKeybinds)
-                
-                Library:Success("Keybind set for " .. Name, 2)
-            end
-
-            UpdateKeybindDisplay()
-        end)
-    end)
-
-    -- Load keybind from file if exists
-    local function LoadKeybindForModule()
-        local Path = "RiseV6UI/.keybinds"
-        if FileManager:IsFile(Path) then
-            local Data = FileManager:ReadFile(Path)
-            local KeyName = Data:match(Flag .. '%s*=%s*"(.-)"')
-            if KeyName and KeyName ~= "NONE" then
-                -- Try to find the KeyCode by name
-                local Found = false
-                for _, KeyCode in pairs(Enum.KeyCode:GetEnumItems()) do
-                    if KeyCode.Name == KeyName then
-                        ModuleKeybind = KeyCode
-                        Library.ModuleKeybinds[Flag].Keybind = ModuleKeybind
-                        Found = true
-                        break
-                    end
-                end
-                if not Found then
-                    ModuleKeybind = nil
-                end
-            end
-        end
-        UpdateKeybindDisplay()
-    end
-
-    LoadKeybindForModule()
-
-    -- Hook keybind to module toggle
-    local KeybindConnection
-    local function SetupKeybindListener()
-        if KeybindConnection then
-            KeybindConnection:Disconnect()
-        end
-        
-        if ModuleKeybind then
-            KeybindConnection = UserInputService.InputBegan:Connect(function(Input, GameProcessed)
-                if GameProcessed or Input.KeyCode ~= ModuleKeybind then return end
-                Module:SetEnabled(not Module.Enabled)
-            end)
-        end
-    end
-
-    SetupKeybindListener()
-
-    function Module:SetKeybind(KeyCode)
-        ModuleKeybind = KeyCode
-        Library.ModuleKeybinds[Flag].Keybind = KeyCode
-        UpdateKeybindDisplay()
-        SetupKeybindListener()
-    end
-
-    function Module:GetKeybind()
-        return ModuleKeybind
-    end
+    function Module:AddLabel(Config)
         return Library:AddLabel(self, Config)
     end
 
