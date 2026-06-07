@@ -1675,6 +1675,10 @@ function Library:AddModule(Tab, Config)
         return Library:AddCarousel(self, Config)
     end
 
+    function Module:AddKeybind(Config)
+        return Library:AddKeybind(self, Config)
+    end
+
     return Module
 end
 
@@ -2779,6 +2783,172 @@ function Library:AddButton(Module, Config)
     end
 
     return Button
+end
+
+function Library:AddKeybind(Module, Config)
+    Config = Config or {}
+
+    local Text     = Config.Text     or "Keybind"
+    local Flag     = Config.Flag     or Text:gsub("%s+", "")
+    local Default  = Config.Default  or nil   -- Enum.KeyCode.X  or  nil
+    local OnChange = Config.OnChange or function() end
+    local OnPress  = Config.OnPress  or function() end
+
+    local CurrentKey = Default
+    local IsListening = false
+
+    Library.Flags[Flag] = CurrentKey
+
+    -- ── Outer wrapper (same height as a button row) ──────────────────────
+    local Wrapper = Instance.new("Frame")
+    Wrapper.Size = UDim2.new(1, 0, 0, 26)
+    Wrapper.BackgroundTransparency = 1
+    Wrapper.ClipsDescendants = false
+    Wrapper.Parent = Module.Container
+
+    local WrapperPad = Instance.new("UIPadding")
+    WrapperPad.PaddingLeft = UDim.new(0, 10)
+    WrapperPad.Parent = Wrapper
+
+    -- ── Name label ───────────────────────────────────────────────────────
+    local NameLabel = Instance.new("TextLabel")
+    NameLabel.Size = UDim2.new(1, -90, 1, 0)
+    NameLabel.BackgroundTransparency = 1
+    NameLabel.Text = Text
+    NameLabel.TextSize = 15
+    NameLabel.TextXAlignment = Enum.TextXAlignment.Left
+    pcall(function() NameLabel.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal) end)
+    NameLabel.Parent = Wrapper
+    self:TrackTheme(NameLabel, "TextColor3", "Text")
+
+    -- ── Pill / badge showing the bound key ───────────────────────────────
+    local Pill = Instance.new("Frame")
+    Pill.Size = UDim2.new(0, 76, 0, 20)
+    Pill.AnchorPoint = Vector2.new(1, 0.5)
+    Pill.Position = UDim2.new(1, -6, 0.5, 0)
+    Pill.BorderSizePixel = 0
+    Pill.BackgroundTransparency = 0.6
+    Pill.Parent = Wrapper
+    self:TrackTheme(Pill, "BackgroundColor3", "Background")
+
+    local PillCorner = Instance.new("UICorner")
+    PillCorner.CornerRadius = UDim.new(0, 6)
+    PillCorner.Parent = Pill
+
+    local PillStroke = Instance.new("UIStroke")
+    PillStroke.Thickness = 1
+    PillStroke.Transparency = 0.6
+    PillStroke.Parent = Pill
+    self:TrackTheme(PillStroke, "Color", "Text")
+
+    local KeyLabel = Instance.new("TextLabel")
+    KeyLabel.Size = UDim2.new(1, 0, 1, 0)
+    KeyLabel.BackgroundTransparency = 1
+    KeyLabel.TextSize = 13
+    KeyLabel.TextXAlignment = Enum.TextXAlignment.Center
+    pcall(function() KeyLabel.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal) end)
+    KeyLabel.Parent = Pill
+    self:TrackTheme(KeyLabel, "TextColor3", "Text")
+
+    -- ── Click button over the pill ────────────────────────────────────────
+    local PillBtn = Instance.new("TextButton")
+    PillBtn.Size = UDim2.new(1, 0, 1, 0)
+    PillBtn.BackgroundTransparency = 1
+    PillBtn.Text = ""
+    PillBtn.AutoButtonColor = false
+    PillBtn.ZIndex = 3
+    PillBtn.Parent = Pill
+
+    -- ── Helper: pretty key name ───────────────────────────────────────────
+    local function KeyName(KeyCode)
+        if not KeyCode then return "None" end
+        local n = tostring(KeyCode):gsub("Enum%.KeyCode%.", "")
+        return n
+    end
+
+    local function UpdateLabel()
+        if IsListening then
+            KeyLabel.Text = "..."
+            self:TrackAccent(PillStroke, "Color", "Accent")
+        else
+            KeyLabel.Text = KeyName(CurrentKey)
+            self:Untrack(PillStroke, "Color")
+            self:TrackTheme(PillStroke, "Color", "Text")
+        end
+    end
+
+    -- ── Enter / exit listening mode ───────────────────────────────────────
+    local InputConn = nil
+
+    local function StartListening()
+        if IsListening then return end
+        IsListening = true
+        UpdateLabel()
+
+        InputConn = UserInputService.InputBegan:Connect(function(Input, GameProcessed)
+            if GameProcessed then return end
+
+            IsListening = false
+            if InputConn then InputConn:Disconnect(); InputConn = nil end
+
+            if Input.KeyCode == Enum.KeyCode.Backspace then
+                -- Remove / clear the keybind
+                CurrentKey = nil
+            elseif Input.UserInputType == Enum.UserInputType.Keyboard then
+                CurrentKey = Input.KeyCode
+            else
+                -- Non-keyboard input (e.g. mouse click) cancels without changing
+                UpdateLabel()
+                return
+            end
+
+            Library.Flags[Flag] = CurrentKey
+            UpdateLabel()
+            task.spawn(OnChange, CurrentKey)
+        end)
+    end
+
+    PillBtn.MouseButton1Click:Connect(function()
+        StartListening()
+    end)
+
+    PillBtn.MouseEnter:Connect(function()
+        TweenService:Create(Pill, TweenInfo.new(0.12, Enum.EasingStyle.Quad), {BackgroundTransparency = 0.4}):Play()
+    end)
+
+    PillBtn.MouseLeave:Connect(function()
+        TweenService:Create(Pill, TweenInfo.new(0.18, Enum.EasingStyle.Quad), {BackgroundTransparency = 0.6}):Play()
+    end)
+
+    -- ── Global key listener for triggering OnPress ────────────────────────
+    UserInputService.InputBegan:Connect(function(Input, GameProcessed)
+        if GameProcessed then return end
+        if IsListening then return end
+        if CurrentKey and Input.KeyCode == CurrentKey then
+            task.spawn(OnPress)
+        end
+    end)
+
+    -- ── Public API ────────────────────────────────────────────────────────
+    local Keybind = {}
+    Keybind.Flag = Flag
+
+    function Keybind:GetKey()
+        return CurrentKey
+    end
+
+    function Keybind:SetKey(KeyCode)
+        CurrentKey = KeyCode
+        Library.Flags[Flag] = CurrentKey
+        UpdateLabel()
+        task.spawn(OnChange, CurrentKey)
+    end
+
+    Library.KeybindMap = Library.KeybindMap or {}
+    Library.KeybindMap[Flag] = Keybind
+
+    UpdateLabel()
+    return Keybind
 end
 
 function Library:AddColorPicker(Module, Config)
