@@ -4038,15 +4038,7 @@ local ConfigsTab = Window:AddTab({
 local ConfigSystem = ConfigSystemFactory(Library)
 ConfigsTab:AddConfig(ConfigSystem)
 
-UserInputService.InputBegan:Connect(function(Input, GameProcessed)
-    if GameProcessed then return end
-
-    if Input.KeyCode == Enum.KeyCode.RightControl
-        or Input.KeyCode == Enum.KeyCode.RightShift
-    then
-        Library:ToggleWindow(Window)
-    end
-end)
+-- (Removed hardcoded RightControl/RightShift toggle — handled by the Keybind system)
 
 local PreviousMouseBehavior = UserInputService.MouseBehavior
 local PreviousMouseIconEnabled = UserInputService.MouseIconEnabled
