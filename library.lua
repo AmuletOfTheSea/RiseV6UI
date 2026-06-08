@@ -377,46 +377,9 @@ local function MakeDraggable(Frame, DragHandle)
     local DragStart = nil
     local StartPosition = nil
     local TargetPosition = nil
-    local StepConnection = nil
 
     local function Lerp(A, B, T)
         return A + (B - A) * T
-    end
-
-    local function StopStep()
-        if StepConnection then
-            StepConnection:Disconnect()
-            StepConnection = nil
-        end
-    end
-
-    local function StartStep()
-        if StepConnection then return end
-
-        StepConnection = RunService.RenderStepped:Connect(function()
-            if not TargetPosition then
-                StopStep()
-                return
-            end
-
-            local Current = Frame.Position
-            local NextPosition = UDim2.new(
-                Lerp(Current.X.Scale, TargetPosition.X.Scale, 0.2),
-                Lerp(Current.X.Offset, TargetPosition.X.Offset, 0.2),
-                Lerp(Current.Y.Scale, TargetPosition.Y.Scale, 0.2),
-                Lerp(Current.Y.Offset, TargetPosition.Y.Offset, 0.2)
-            )
-
-            Frame.Position = NextPosition
-
-            if not Dragging
-            and math.abs(NextPosition.X.Offset - TargetPosition.X.Offset) < 0.5
-            and math.abs(NextPosition.Y.Offset - TargetPosition.Y.Offset) < 0.5 then
-                Frame.Position = TargetPosition
-                TargetPosition = nil
-                StopStep()
-            end
-        end)
     end
 
     DragHandle.InputBegan:Connect(function(Input)
@@ -426,7 +389,6 @@ local function MakeDraggable(Frame, DragHandle)
             DragStart = Input.Position
             StartPosition = Frame.Position
             TargetPosition = StartPosition
-            StartStep()
 
             Input.Changed:Connect(function()
                 if Input.UserInputState == Enum.UserInputState.End then
@@ -448,6 +410,19 @@ local function MakeDraggable(Frame, DragHandle)
                 StartPosition.X.Offset + Delta.X,
                 StartPosition.Y.Scale,
                 StartPosition.Y.Offset + Delta.Y
+            )
+        end
+    end)
+
+    RunService.RenderStepped:Connect(function()
+        if TargetPosition then
+            local Current = Frame.Position
+
+            Frame.Position = UDim2.new(
+                Lerp(Current.X.Scale, TargetPosition.X.Scale, 0.2),
+                Lerp(Current.X.Offset, TargetPosition.X.Offset, 0.2),
+                Lerp(Current.Y.Scale, TargetPosition.Y.Scale, 0.2),
+                Lerp(Current.Y.Offset, TargetPosition.Y.Offset, 0.2)
             )
         end
     end)
@@ -796,7 +771,8 @@ local function AttachShadow(TargetInstance, CornerRadius, LayerCount, MaxSpread,
 
     local LastPos = Vector2.new(-1, -1)
     local LastSize = Vector2.new(-1, -1)
-    local SyncQueued = false
+    local LastUpdate = 0
+    local UpdateRate = 1 / 30
 
     for LayerIndex = 1, LayerCount do
         local T = LayerCount == 1 and 0 or (LayerIndex - 1) / (LayerCount - 1)
@@ -824,16 +800,15 @@ local function AttachShadow(TargetInstance, CornerRadius, LayerCount, MaxSpread,
     end
 
     local function SyncShadow()
-        SyncQueued = false
-
         if not TargetInstance.Parent then return end
         if not TargetInstance.Visible then return end
 
+        local Now = tick()
+        if Now - LastUpdate < UpdateRate then return end
+        LastUpdate = Now
+
         local AbsPos = TargetInstance.AbsolutePosition
-        local ParentAbsPos = Vector2.new(0, 0)
-        pcall(function()
-            ParentAbsPos = Parent.AbsolutePosition
-        end)
+        local ParentAbsPos = Parent.AbsolutePosition
 
         local RelativeX = AbsPos.X - ParentAbsPos.X
         local RelativeY = AbsPos.Y - ParentAbsPos.Y
@@ -863,22 +838,6 @@ local function AttachShadow(TargetInstance, CornerRadius, LayerCount, MaxSpread,
         end
     end
 
-    local function QueueSync()
-        if SyncQueued then return end
-        SyncQueued = true
-        task.defer(SyncShadow)
-    end
-
-    local function BindChanged(Object, Property, Callback)
-        local Success, Signal = pcall(function()
-            return Object:GetPropertyChangedSignal(Property)
-        end)
-
-        if Success and Signal then
-            Connections[#Connections + 1] = Signal:Connect(Callback)
-        end
-    end
-
     local function SetShadowVisible(State)
         for _, Layer in ipairs(ShadowLayers) do
             Layer.Frame.Visible = State
@@ -901,24 +860,12 @@ local function AttachShadow(TargetInstance, CornerRadius, LayerCount, MaxSpread,
 
     if TargetInstance.Visible then
         SetShadowVisible(true)
-        SyncShadow()
-        TweenShadow(Alpha)
+        TweenShadow(Alpha, 0)
     else
         SetShadowVisible(false)
     end
 
-    BindChanged(TargetInstance, "AbsolutePosition", QueueSync)
-    BindChanged(TargetInstance, "AbsoluteSize", QueueSync)
-    BindChanged(TargetInstance, "Position", QueueSync)
-    BindChanged(TargetInstance, "Size", QueueSync)
-    BindChanged(TargetInstance, "ZIndex", function()
-        for _, Layer in ipairs(ShadowLayers) do
-            Layer.Frame.ZIndex = TargetInstance.ZIndex - 1
-        end
-    end)
-
-    BindChanged(Parent, "AbsolutePosition", QueueSync)
-    BindChanged(Parent, "AbsoluteSize", QueueSync)
+    Connections[#Connections + 1] = RunService.RenderStepped:Connect(SyncShadow)
 
     Connections[#Connections + 1] = TargetInstance.AncestryChanged:Connect(function(_, ParentNow)
         if ParentNow then return end
@@ -939,10 +886,9 @@ local function AttachShadow(TargetInstance, CornerRadius, LayerCount, MaxSpread,
     Connections[#Connections + 1] = TargetInstance:GetPropertyChangedSignal("Visible"):Connect(function()
         if TargetInstance.Visible then
             SetShadowVisible(true)
-            QueueSync()
-            TweenShadow(Shadow.Alpha)
+            TweenShadow(Shadow.Alpha, 0.2)
         else
-            TweenShadow(0)
+            TweenShadow(0, 0.15)
             task.delay(0.15, function()
                 if not TargetInstance.Visible then
                     SetShadowVisible(false)
@@ -1146,6 +1092,7 @@ function Library:CreateWindow(Options)
     SideBar.Size = UDim2.new(0, 140, 1, 0)
     SideBar.Position = UDim2.new(0, 0, 0, 0)
     SideBar.BorderSizePixel = 0
+    SideBar.ClipsDescendants = true
     SideBar.Parent = MainFrame
 
     self:TrackTheme(SideBar, "BackgroundColor3", "SideBar")
@@ -1178,12 +1125,18 @@ function Library:CreateWindow(Options)
 
     AttachTextShadow(TitleHolder, Vector2.new(1.2, 1.2), Color3.fromRGB(0, 0, 0), self:GetTheme("ShadowAlpha"), 2, -1)
 
-    local TabHolder = Instance.new("Frame")
+    local TabHolder = Instance.new("ScrollingFrame")
     TabHolder.Name = "TabHolder"
     TabHolder.Size = UDim2.new(1, -24, 1, -40)
     TabHolder.Position = UDim2.new(0, 16, 0, 40)
     TabHolder.BackgroundTransparency = 1
     TabHolder.BorderSizePixel = 0
+    TabHolder.ScrollBarThickness = 0
+    TabHolder.ScrollBarImageTransparency = 1
+    TabHolder.ScrollingDirection = Enum.ScrollingDirection.Y
+    TabHolder.CanvasSize = UDim2.new(0, 0, 0, 0)
+    TabHolder.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    TabHolder.Active = true
     TabHolder.Parent = SideBar
 
     local Layout = Instance.new("UIListLayout")
@@ -1332,6 +1285,17 @@ function Library:AddTab(Window, Config)
         Corner.Parent = Selector
 
         Window.TabSelector = Selector
+
+        -- Keep the selector pill synced when the tab list is scrolled
+        Window.TabHolder:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
+            if not Window.ActiveTab then return end
+            local ActiveButton = Window.ActiveTab.Button
+            local NewY = ActiveButton.AbsolutePosition.Y - Window.SideBar.AbsolutePosition.Y
+            local NewX = ActiveButton.AbsolutePosition.X - Window.SideBar.AbsolutePosition.X
+            local Extra = 8
+            Window.TabSelector.Position = UDim2.new(0, NewX, 0, NewY + 6)
+            Window.TabSelector.Size = UDim2.new(0, ActiveButton.AbsoluteSize.X + Extra, 0, 28)
+        end)
     end
 
     Tab.Button = Button
@@ -1404,7 +1368,11 @@ function Library:AddTab(Window, Config)
 
         local PreviousTab = Window.ActiveTab
 
+        RunService.RenderStepped:Wait()
+
         Padding.PaddingLeft = UDim.new(0, 28)
+
+        RunService.RenderStepped:Wait()
 
         local BasePadding = 28
         local HoverPadding = 36
@@ -4116,8 +4084,6 @@ CursorCorner.Parent = Cursor
 Library:TrackAccent(Cursor, "BackgroundColor3", "Accent")
 local CursorShadow = AttachShadow(Cursor, 6, 6, 6, 1.2, Color3.new(0, 0, 0), 0.35)
 Library:TrackAccent(CursorShadow, nil, "Accent")
-local LastCursorX = nil
-local LastCursorY = nil
 
 local function SetState(State)
     if State == ScreenGuis.MouseUnlockerUI.Enabled then return end
@@ -4155,19 +4121,10 @@ Library:RenderStepped(function()
 
     local Pos = UserInputService:GetMouseLocation()
     local Inset = GuiService:GetGuiInset()
-    local X = Pos.X
-    local Y = Pos.Y - Inset.Y
-
-    if X == LastCursorX and Y == LastCursorY then
-        return
-    end
-
-    LastCursorX = X
-    LastCursorY = Y
 
     Cursor.Position = UDim2.fromOffset(
-        X,
-        Y
+        Pos.X,
+        Pos.Y - Inset.Y
     )
 end)
 
