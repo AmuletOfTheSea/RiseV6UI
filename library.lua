@@ -1092,6 +1092,7 @@ function Library:CreateWindow(Options)
     SideBar.Size = UDim2.new(0, 140, 1, 0)
     SideBar.Position = UDim2.new(0, 0, 0, 0)
     SideBar.BorderSizePixel = 0
+    SideBar.ClipsDescendants = true
     SideBar.Parent = MainFrame
 
     self:TrackTheme(SideBar, "BackgroundColor3", "SideBar")
@@ -1135,6 +1136,7 @@ function Library:CreateWindow(Options)
     TabHolder.ScrollingDirection = Enum.ScrollingDirection.Y
     TabHolder.CanvasSize = UDim2.new(0, 0, 0, 0)
     TabHolder.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    TabHolder.Active = true
     TabHolder.Parent = SideBar
 
     local Layout = Instance.new("UIListLayout")
