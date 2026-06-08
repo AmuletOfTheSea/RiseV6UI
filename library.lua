@@ -1285,6 +1285,17 @@ function Library:AddTab(Window, Config)
         Corner.Parent = Selector
 
         Window.TabSelector = Selector
+
+        -- Keep the selector pill synced when the tab list is scrolled
+        Window.TabHolder:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
+            if not Window.ActiveTab then return end
+            local ActiveButton = Window.ActiveTab.Button
+            local NewY = ActiveButton.AbsolutePosition.Y - Window.SideBar.AbsolutePosition.Y
+            local NewX = ActiveButton.AbsolutePosition.X - Window.SideBar.AbsolutePosition.X
+            local Extra = 8
+            Window.TabSelector.Position = UDim2.new(0, NewX, 0, NewY + 6)
+            Window.TabSelector.Size = UDim2.new(0, ActiveButton.AbsoluteSize.X + Extra, 0, 28)
+        end)
     end
 
     Tab.Button = Button
