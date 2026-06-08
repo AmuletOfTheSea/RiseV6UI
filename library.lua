@@ -1124,12 +1124,17 @@ function Library:CreateWindow(Options)
 
     AttachTextShadow(TitleHolder, Vector2.new(1.2, 1.2), Color3.fromRGB(0, 0, 0), self:GetTheme("ShadowAlpha"), 2, -1)
 
-    local TabHolder = Instance.new("Frame")
+    local TabHolder = Instance.new("ScrollingFrame")
     TabHolder.Name = "TabHolder"
     TabHolder.Size = UDim2.new(1, -24, 1, -40)
     TabHolder.Position = UDim2.new(0, 16, 0, 40)
     TabHolder.BackgroundTransparency = 1
     TabHolder.BorderSizePixel = 0
+    TabHolder.ScrollBarThickness = 0
+    TabHolder.ScrollBarImageTransparency = 1
+    TabHolder.ScrollingDirection = Enum.ScrollingDirection.Y
+    TabHolder.CanvasSize = UDim2.new(0, 0, 0, 0)
+    TabHolder.AutomaticCanvasSize = Enum.AutomaticSize.Y
     TabHolder.Parent = SideBar
 
     local Layout = Instance.new("UIListLayout")
