@@ -471,10 +471,10 @@ function DragManager:Register(Entry)
                 local Current = Entry.Frame.Position
 
                 local NewPosition = UDim2.new(
-                    Entry.Lerp(Current.X.Scale, Entry.TargetPosition.X.Scale, 0.25),
-                    Entry.Lerp(Current.X.Offset, Entry.TargetPosition.X.Offset, 0.25),
-                    Entry.Lerp(Current.Y.Scale, Entry.TargetPosition.Y.Scale, 0.25),
-                    Entry.Lerp(Current.Y.Offset, Entry.TargetPosition.Y.Offset, 0.25)
+                    Entry:Lerp(Current.X.Scale, Entry.TargetPosition.X.Scale, 0.25),
+                    Entry:Lerp(Current.X.Offset, Entry.TargetPosition.X.Offset, 0.25),
+                    Entry:Lerp(Current.Y.Scale, Entry.TargetPosition.Y.Scale, 0.25),
+                    Entry:Lerp(Current.Y.Offset, Entry.TargetPosition.Y.Offset, 0.25)
                 )
 
                 if NewPosition.X.Scale ~= Current.X.Scale
