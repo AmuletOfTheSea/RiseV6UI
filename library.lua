@@ -1267,8 +1267,6 @@ local function AttachShadow(TargetInstance, CornerRadius, LayerCount, MaxSpread,
         end
     end
 
-    Entry.Sync = function() Entry:Sync() end
-
     ShadowManager:Register(Entry)
 
     return Shadow
