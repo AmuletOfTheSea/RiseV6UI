@@ -1420,18 +1420,6 @@ local SearchRegistry = {}
 local SearchActive = false
 local SearchQuery = ""
 
-local function RegisterSearch(Module, Root, Keywords)
-    SearchRegistry[#SearchRegistry + 1] = {
-        Module = Module,
-        Instance = Root,
-        Keywords = tostring(Keywords or "")
-    }
-
-    if SearchActive then
-        ApplySearch()
-    end
-end
-
 local function ApplySearch()
     local Window = Library.Window
     if not Window then return end
@@ -1488,6 +1476,18 @@ local function ApplySearch()
                 Module._SearchSnapshot = nil
             end
         end
+    end
+end
+
+local function RegisterSearch(Module, Root, Keywords)
+    SearchRegistry[#SearchRegistry + 1] = {
+        Module = Module,
+        Instance = Root,
+        Keywords = tostring(Keywords or "")
+    }
+
+    if SearchActive then
+        ApplySearch()
     end
 end
 
@@ -2906,25 +2906,25 @@ function Library:AddModule(Tab, Config)
     return Module
 end
 
+local function BuildParagraphText(Config)
+    local Lines = {}
+
+    if Config.Text then
+        table.insert(Lines, Config.Text)
+    else
+        for i = 1, math.huge do
+            local Line = Config["Line" .. i]
+            if not Line then break end
+            table.insert(Lines, Line)
+        end
+    end
+
+    return table.concat(Lines, "\n")
+end
+
 function Library:AddParagraph(Tab, Config)
     Config = Config or {}
     local TextSize = Config.TextSize or 16
-
-    local function BuildText()
-        local Lines = {}
-
-        if Config.Text then
-            table.insert(Lines, Config.Text)
-        else
-            for i = 1, math.huge do
-                local Line = Config["Line" .. i]
-                if not Line then break end
-                table.insert(Lines, Line)
-            end
-        end
-
-        return table.concat(Lines, "\n")
-    end
 
     local Holder = Instance.new("Frame")
     Holder.Size = UDim2.new(1, -8, 0, 0)
@@ -2974,7 +2974,7 @@ function Library:AddParagraph(Tab, Config)
         Label.Text = table.concat(Out, "\n")
     end
 
-    SetLines(BuildText())
+    SetLines(BuildParagraphText(Config))
     UpdateSize()
 
     -- Generation counter: Destroy() bumps it so the update loop stops
@@ -3190,10 +3190,16 @@ function Library:AddRadar(Tab, Config)
             RootPart = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
         end
 
-        if not RootPart then ReleaseDots() return end
+        if not RootPart then
+            ReleaseDots()
+            return
+        end
 
         local Camera = workspace.CurrentCamera
-        if not Camera then ReleaseDots() return end
+        if not Camera then
+            ReleaseDots()
+            return
+        end
 
         local LocalPosition = RootPart.Position
         local LocalTeam = LocalPlayer.Team
@@ -3322,7 +3328,7 @@ function Library:AddThemes(Tab, Config)
     Holder.BorderSizePixel = 0
     Holder.Parent = Tab.Content
 
-    RegisterSearch(nil, Holder, (Config.Title or "") .. " " .. BuildText())
+    RegisterSearch(nil, Holder, (Config.Title or "") .. " " .. BuildParagraphText(Config))
 
     self:TrackTheme(Holder, "BackgroundColor3", "SideBar")
 
