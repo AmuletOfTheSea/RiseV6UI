@@ -1,6 +1,21 @@
 local HttpService = game:GetService("HttpService")
 
-local FileManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/AmuletOfTheSea/RiseV6UI/main/Systems/FileManager.lua"))()
+local function LoadFileManager()
+    local Genv = getgenv and getgenv() or _G
+    if Genv.RiseV6Modules and Genv.RiseV6Modules["FileManager.lua"] then
+        return loadstring(Genv.RiseV6Modules["FileManager.lua"])()
+    end
+
+    local Ok, Source = pcall(readfile, "RiseV6UI/Systems/FileManager.lua")
+    if Ok and Source and #Source > 0 then
+        local Factory, Err = loadstring(Source)
+        if Factory then return Factory() end
+    end
+
+    return loadstring(game:HttpGet("https://raw.githubusercontent.com/AmuletOfTheSea/RiseV6UI/main/Systems/FileManager.lua"))()
+end
+
+local FileManager = LoadFileManager()
 
 local function NewConfigSystem(Library)
     local ConfigSystem = {}
@@ -64,6 +79,83 @@ local function NewConfigSystem(Library)
                 end
             end
 
+            if Module.Dropdowns then
+                local DropdownData = {}
+
+                for DropdownFlag, Dropdown in pairs(Module.Dropdowns) do
+                    local Value = Library.Flags[DropdownFlag]
+
+                    if Dropdown and Dropdown.IsMulti then
+                        Value = type(Value) == "table" and Value or (Dropdown:GetSelected() or {})
+                    elseif Dropdown and not Dropdown.IsMulti then
+                        Value = Value ~= nil and Value or (Dropdown:GetValue() or nil)
+                    end
+
+                    DropdownData[DropdownFlag] = Value
+                end
+
+                if next(DropdownData) then
+                    ModuleData.Dropdowns = DropdownData
+                end
+            end
+
+            if Module.ColorPickers then
+                local ColorData = {}
+
+                for ColorFlag, ColorPicker in pairs(Module.ColorPickers) do
+                    local Color = Library.Flags[ColorFlag]
+
+                    if typeof(Color) ~= "Color3" then
+                        Color = ColorPicker:GetValue()
+                    end
+
+                    ColorData[ColorFlag] = {
+                        R = math.floor(Color.R * 255 + 0.5),
+                        G = math.floor(Color.G * 255 + 0.5),
+                        B = math.floor(Color.B * 255 + 0.5)
+                    }
+                end
+
+                if next(ColorData) then
+                    ModuleData.ColorPickers = ColorData
+                end
+            end
+
+            if Module.TextBoxes then
+                local TextBoxData = {}
+
+                for TextBoxFlag, TextBox in pairs(Module.TextBoxes) do
+                    TextBoxData[TextBoxFlag] = Library.Flags[TextBoxFlag]
+
+                    if type(TextBoxData[TextBoxFlag]) ~= "string" then
+                        TextBoxData[TextBoxFlag] = TextBox:GetText()
+                    end
+                end
+
+                if next(TextBoxData) then
+                    ModuleData.TextBoxes = TextBoxData
+                end
+            end
+
+            if Module.Keybinds then
+                local KeybindData = {}
+
+                for KeybindFlag, Keybind in pairs(Module.Keybinds) do
+                    local Key = Keybind:GetKey()
+                    if Key and typeof(Key) == "EnumItem" then
+                        local KeyName = tostring(Key)
+                        KeyName = KeyName:gsub("Enum%.KeyCode%.", ""):gsub("Enum%.UserInputType%.", "")
+                        KeybindData[KeybindFlag] = KeyName
+                    else
+                        KeybindData[KeybindFlag] = ""
+                    end
+                end
+
+                if next(KeybindData) then
+                    ModuleData.Keybinds = KeybindData
+                end
+            end
+
             Data[Flag] = ModuleData
         end
 
@@ -83,8 +175,6 @@ local function NewConfigSystem(Library)
         end
 
         local AppliedToggles = {}
-        local AppliedCarousels = {}
-        local AppliedSliders = {}
 
         for ModuleFlag, ModuleData in pairs(Data) do
             if ModuleData.Toggles then
@@ -100,8 +190,6 @@ local function NewConfigSystem(Library)
 
             if ModuleData.Sliders then
                 for SliderFlag, SliderData in pairs(ModuleData.Sliders) do
-                    AppliedSliders[SliderFlag] = true
-
                     if Library.SliderMap and Library.SliderMap[SliderFlag] then
                         local SliderInstance = Library.SliderMap[SliderFlag]
 
@@ -121,7 +209,6 @@ local function NewConfigSystem(Library)
 
             if ModuleData.Carousels then
                 for CarouselFlag, Value in pairs(ModuleData.Carousels) do
-                    AppliedCarousels[CarouselFlag] = true
                     Library.Flags[CarouselFlag] = Value
 
                     if Library.CarouselMap and Library.CarouselMap[CarouselFlag] then
@@ -133,6 +220,60 @@ local function NewConfigSystem(Library)
                                 CarouselInstance:SetValue(Index)
                                 break
                             end
+                        end
+                    end
+                end
+            end
+
+            if ModuleData.Dropdowns then
+                for DropdownFlag, Value in pairs(ModuleData.Dropdowns) do
+                    if Library.DropdownMap and Library.DropdownMap[DropdownFlag] then
+                        local DropdownInstance = Library.DropdownMap[DropdownFlag]
+
+                        if DropdownInstance.IsMulti then
+                            DropdownInstance:SetSelected(type(Value) == "table" and Value or {})
+                        else
+                            DropdownInstance:SetValue(Value)
+                        end
+                    else
+                        Library.Flags[DropdownFlag] = Value
+                    end
+                end
+            end
+
+            if ModuleData.ColorPickers then
+                for ColorFlag, Data in pairs(ModuleData.ColorPickers) do
+                    if Library.ColorPickerMap and Library.ColorPickerMap[ColorFlag] then
+                        local Color = Color3.fromRGB(
+                            Data.R or 255,
+                            Data.G or 255,
+                            Data.B or 255
+                        )
+                        Library.ColorPickerMap[ColorFlag]:SetValue(Color)
+                        Library.Flags[ColorFlag] = Color
+                    end
+                end
+            end
+
+            if ModuleData.TextBoxes then
+                for TextBoxFlag, Value in pairs(ModuleData.TextBoxes) do
+                    if Library.TextBoxMap and Library.TextBoxMap[TextBoxFlag] then
+                        Library.TextBoxMap[TextBoxFlag]:SetText(Value)
+                        Library.Flags[TextBoxFlag] = Value
+                    end
+                end
+            end
+
+            if ModuleData.Keybinds then
+                for KeybindFlag, KeyName in pairs(ModuleData.Keybinds) do
+                    if Library.KeybindMap and Library.KeybindMap[KeybindFlag] then
+                        if KeyName and KeyName ~= "" then
+                            local KeyItem = Enum.KeyCode[KeyName] or Enum.UserInputType[KeyName]
+                            if KeyItem then
+                                Library.KeybindMap[KeybindFlag]:SetKey(KeyItem)
+                            end
+                        else
+                            Library.KeybindMap[KeybindFlag]:SetKey(nil)
                         end
                     end
                 end
@@ -171,7 +312,8 @@ local function NewConfigSystem(Library)
                 Result = Result:sub(1, -3) .. "\n" .. Spacing .. "}"
                 return Result
             elseif type(Value) == "string" then
-                return '"' .. Value .. '"'
+                local Escaped = Value:gsub('\\', '\\\\'):gsub('"', '\\"'):gsub('\n', '\\n'):gsub('\r', '\\r'):gsub('\t', '\\t')
+                return '"' .. Escaped .. '"'
             elseif type(Value) == "boolean" or type(Value) == "number" then
                 return tostring(Value)
             else
@@ -201,7 +343,9 @@ local function NewConfigSystem(Library)
 
         local Raw = FileManager:ReadFile(Path)
 
-        Raw = Raw:gsub("^%-%-.-\n", "")
+        while Raw:match("^%s*%-%-") do
+            Raw = Raw:gsub("^%s*%-%-[^\n]*\n?", "")
+        end
 
         local Success, Decoded = pcall(function()
             return HttpService:JSONDecode(Raw)
