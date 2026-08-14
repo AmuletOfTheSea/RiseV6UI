@@ -83,7 +83,7 @@ if getgenv().LibraryInstance then
 end
 
 local Library = {
-    Version = "1.5.0",
+    Version = "1.0.0",
     ThemeObjects = {},
     AccentObjects = {},
     LoadConfig = nil,
