@@ -31,6 +31,7 @@ local ValidGuis = {
     PerseusMouseUI = CoreGui,
     PerseusHUD = CoreGui,
     NotificationContainer = CoreGui,
+    PerseusPromptUI = CoreGui,
 }
 local GuiConfigs = {
     PerseusUI = {},
@@ -58,6 +59,13 @@ local GuiConfigs = {
         DisplayOrder = 1000,
         ZIndexBehavior = Enum.ZIndexBehavior.Global
     },
+
+    PerseusPromptUI = {
+        ResetOnSpawn = false,
+        IgnoreGuiInset = true,
+        DisplayOrder = 50000,
+        ZIndexBehavior = Enum.ZIndexBehavior.Global
+    },
 }
 local ScreenGuis = {}
 local EnsureGuis
@@ -82,7 +90,10 @@ local Library = {
     Flags = {},
     Modules = {},
     Labels = {},
-    Toggles = {}
+    Toggles = {},
+    PromptQueue = {},
+    PromptOpen = false,
+    ConditionObjects = {}
 }
 
 
@@ -347,6 +358,282 @@ function Library:ClearAllNotifications()
     self.NotificationSystem.Notifications = {}
 end
 
+function Library:GetFlag(Flag)
+    return self.Flags and self.Flags[Flag]
+end
+
+function Library:GetControl(Flag)
+    local Maps = {
+        self.ToggleMap, self.SliderMap, self.CarouselMap,
+        self.DropdownMap, self.KeybindMap, self.ColorPickerMap, self.TextBoxMap
+    }
+    for _, Map in ipairs(Maps) do
+        if Map and Map[Flag] then
+            return Map[Flag]
+        end
+    end
+    return nil
+end
+
+function Library:TrackCondition(Object, ConditionFn)
+    if not Object or type(ConditionFn) ~= "function" then return end
+
+    self.ConditionObjects[#self.ConditionObjects + 1] = {
+        Object = Object,
+        Condition = ConditionFn,
+        Visible = Object.Visible
+    }
+
+    if not self.ConditionTickerStarted then
+        self.ConditionTickerStarted = true
+        task.spawn(function()
+            while true do
+                task.wait(0.1)
+                if #self.ConditionObjects > 0 then
+                    self:RefreshConditions()
+                end
+            end
+        end)
+    end
+
+    self:RefreshConditions()
+end
+
+function Library:RefreshConditions()
+    for i = 1, #self.ConditionObjects do
+        local Entry = self.ConditionObjects[i]
+        local Object = Entry.Object
+
+        if Object and Object.Parent then
+            local Ok, Result = pcall(Entry.Condition)
+            local State = Ok and Result == true
+
+            if Entry.Visible ~= State then
+                Entry.Visible = State
+                Object.Visible = State
+            end
+        end
+    end
+end
+
+function Library:ShowNextPrompt()
+    if self.PromptOpen then return end
+    local Config = table.remove(self.PromptQueue, 1)
+    if Config then
+        self:Prompt(Config)
+    end
+end
+
+function Library:Prompt(Config)
+    Config = Config or {}
+
+    if self.PromptOpen then
+        table.insert(self.PromptQueue, Config)
+        return
+    end
+    self.PromptOpen = true
+
+    local Title = Config.Title or "Confirm"
+    local Text = Config.Text or "Are you sure?"
+    local IsAlert = Config.Alert == true
+    local ConfirmText = Config.ConfirmText or (IsAlert and "OK" or "Confirm")
+    local CancelText = Config.CancelText or "Cancel"
+
+    local Gui = ScreenGuis.PerseusPromptUI
+
+    local Blocker = Instance.new("TextButton")
+    Blocker.Size = UDim2.fromScale(1, 1)
+    Blocker.BackgroundColor3 = Color3.new(0, 0, 0)
+    Blocker.BackgroundTransparency = 1
+    Blocker.BorderSizePixel = 0
+    Blocker.Text = ""
+    Blocker.AutoButtonColor = false
+    Blocker.Active = true
+    Blocker.Modal = true
+    Blocker.Parent = Gui
+
+    local Card = Instance.new("Frame")
+    Card.AnchorPoint = Vector2.new(0.5, 0.5)
+    Card.Position = UDim2.fromScale(0.5, 0.5)
+    Card.Size = UDim2.new(0, 340, 0, 0)
+    Card.AutomaticSize = Enum.AutomaticSize.Y
+    Card.BorderSizePixel = 0
+    Card.ZIndex = 3
+    Card.Parent = Gui
+    self:TrackTheme(Card, "BackgroundColor3", "Background")
+
+    local Corner = Instance.new("UICorner")
+    Corner.CornerRadius = UDim.new(0, 14)
+    Corner.Parent = Card
+
+    local Stroke = Instance.new("UIStroke")
+    Stroke.Thickness = 1
+    Stroke.Transparency = 0.6
+    Stroke.Parent = Card
+    self:TrackAccent(Stroke, "Color", "Accent")
+
+    local Pad = Instance.new("UIPadding")
+    Pad.PaddingTop = UDim.new(0, 18)
+    Pad.PaddingBottom = UDim.new(0, 18)
+    Pad.PaddingLeft = UDim.new(0, 14)
+    Pad.PaddingRight = UDim.new(0, 14)
+    Pad.Parent = Card
+
+    local Layout = Instance.new("UIListLayout")
+    Layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    Layout.Padding = UDim.new(0, 10)
+    Layout.SortOrder = Enum.SortOrder.LayoutOrder
+    Layout.Parent = Card
+
+    if Config.Icon then
+        local IconImage = Instance.new("ImageLabel")
+        IconImage.Size = UDim2.fromOffset(44, 44)
+        IconImage.BackgroundTransparency = 1
+        IconImage.ScaleType = Enum.ScaleType.Fit
+        local Ok = pcall(function() IconImage.Image = Assets:GetImage(Config.Icon) end)
+        if Ok then
+            IconImage.Parent = Card
+        end
+    end
+
+    local TitleLabel = Instance.new("TextLabel")
+    TitleLabel.Size = UDim2.new(0, 0, 0, 22)
+    TitleLabel.AutomaticSize = Enum.AutomaticSize.X
+    TitleLabel.BackgroundTransparency = 1
+    TitleLabel.Text = Title
+    TitleLabel.TextSize = 18
+    TitleLabel.Parent = Card
+    pcall(function() TitleLabel.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal) end)
+    self:TrackTheme(TitleLabel, "TextColor3", "Text")
+
+    local BodyLabel = Instance.new("TextLabel")
+    BodyLabel.Size = UDim2.new(1, 0, 0, 0)
+    BodyLabel.AutomaticSize = Enum.AutomaticSize.Y
+    BodyLabel.BackgroundTransparency = 1
+    BodyLabel.Text = Text
+    BodyLabel.TextSize = 13
+    BodyLabel.TextWrapped = true
+    BodyLabel.RichText = true
+    BodyLabel.TextXAlignment = Enum.TextXAlignment.Center
+    BodyLabel.Parent = Card
+    pcall(function() BodyLabel.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Regular, Enum.FontStyle.Normal) end)
+    self:TrackTheme(BodyLabel, "TextColor3", "Text")
+
+    local Row = Instance.new("Frame")
+    Row.Size = UDim2.new(1, 0, 0, 36)
+    Row.BackgroundTransparency = 1
+    Row.Parent = Card
+
+    local RowLayout = Instance.new("UIListLayout")
+    RowLayout.FillDirection = Enum.FillDirection.Horizontal
+    RowLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    RowLayout.Padding = UDim.new(0, 8)
+    RowLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    RowLayout.Parent = Row
+
+    local function MakeButton(Text_, IsPrimary)
+        local Btn = Instance.new("TextButton")
+        Btn.Size = UDim2.new(0, IsAlert and 220 or 150, 0, 36)
+        Btn.BackgroundTransparency = IsPrimary and 0 or 0.5
+        Btn.BorderSizePixel = 0
+        Btn.Text = Text_
+        Btn.TextSize = 14
+        Btn.AutoButtonColor = false
+        Btn.Parent = Row
+        pcall(function() Btn.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal) end)
+
+        local BtnCorner = Instance.new("UICorner")
+        BtnCorner.CornerRadius = UDim.new(0, 8)
+        BtnCorner.Parent = Btn
+
+        if IsPrimary then
+            self:TrackAccent(Btn, "BackgroundColor3", "Accent")
+            Btn.TextColor3 = Color3.new(1, 1, 1)
+            Btn.MouseEnter:Connect(function()
+                TweenService:Create(Btn, TweenInfo.new(0.1, Enum.EasingStyle.Quad), {
+                    BackgroundColor3 = self:GetAccent("AccentDark")
+                }):Play()
+            end)
+            Btn.MouseLeave:Connect(function()
+                TweenService:Create(Btn, TweenInfo.new(0.12, Enum.EasingStyle.Quad), {
+                    BackgroundColor3 = self:GetAccent("Accent")
+                }):Play()
+            end)
+        else
+            self:TrackTheme(Btn, "BackgroundColor3", "Background")
+            self:TrackTheme(Btn, "TextColor3", "Text")
+        end
+
+        return Btn
+    end
+
+    local Done = false
+    local EscapeConnection = nil
+
+    local function Resolve(Confirmed)
+        if Done then return end
+        Done = true
+        self.PromptOpen = false
+
+        if EscapeConnection then
+            EscapeConnection:Disconnect()
+            EscapeConnection = nil
+        end
+
+        if Confirmed then
+            if Config.OnConfirm then
+                task.spawn(Config.OnConfirm)
+            end
+        elseif Config.OnCancel then
+            task.spawn(Config.OnCancel)
+        end
+
+        TweenService:Create(Blocker, TweenInfo.new(0.12, Enum.EasingStyle.Quad), {BackgroundTransparency = 1}):Play()
+
+        local OutTween = TweenService:Create(Card, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+            BackgroundTransparency = 1
+        })
+        OutTween:Play()
+        OutTween.Completed:Connect(function()
+            pcall(function() Card:Destroy() end)
+            pcall(function() Blocker:Destroy() end)
+            task.defer(function() self:ShowNextPrompt() end)
+        end)
+    end
+
+    if IsAlert then
+        MakeButton(ConfirmText, true).MouseButton1Click:Connect(function()
+            Resolve(true)
+        end)
+    else
+        MakeButton(CancelText, false).MouseButton1Click:Connect(function()
+            Resolve(false)
+        end)
+        MakeButton(ConfirmText, true).MouseButton1Click:Connect(function()
+            Resolve(true)
+        end)
+    end
+
+    EscapeConnection = UserInputService.InputBegan:Connect(function(Input, Processed)
+        if Processed then return end
+        if Input.KeyCode == Enum.KeyCode.Escape then
+            Resolve(false)
+        end
+    end)
+
+    local Scale = Instance.new("UIScale")
+    Scale.Scale = 0.94
+    Scale.Parent = Card
+    TweenService:Create(Scale, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Scale = 1}):Play()
+    TweenService:Create(Blocker, TweenInfo.new(0.1, Enum.EasingStyle.Quad), {BackgroundTransparency = 0.6}):Play()
+end
+
+function Library:Alert(Config)
+    Config = Config or {}
+    Config.Alert = true
+    self:Prompt(Config)
+end
+
 local function ClearExistingGuis()
     for Name, Parent in pairs(ValidGuis) do
         for _, Gui in ipairs(Parent:GetChildren()) do
@@ -461,7 +748,7 @@ function Library:ToggleWindow(Window, Value)
 
     Window.Open = NewState
 
-    local Duration = 0.22
+    local Duration = 0.15
 
     local ShowTweenInformation = TweenInfo.new(
         Duration,
@@ -618,7 +905,7 @@ function Library:SetAccent(AccentName)
         elseif Object and Object.Parent and Property then
             TweenService:Create(
                 Object,
-                TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+                TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
                 { [Property] = Value }
             ):Play()
         end
@@ -1642,7 +1929,7 @@ function Library:AddModule(Tab, Config)
 
         local Tween = TweenService:Create(
             Container,
-            TweenInfo.new(0.22, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
+            TweenInfo.new(0.15, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
             {
                 Size = UDim2.new(1, -8, 0, TargetSizeY)
             }
@@ -2612,6 +2899,7 @@ function Library:AddLabel(Module, Config)
     Padding.PaddingLeft = UDim.new(0, 10)
     Padding.Parent = Label
 
+    if Config and Config.Condition then self:TrackCondition(Label, Config.Condition) end
     return Label
 end
 
@@ -2645,6 +2933,7 @@ function Library:AddToggle(Module, Config)
     Wrapper.BackgroundTransparency = 1
     Wrapper.ClipsDescendants = false
     Wrapper.Parent = Module.Container
+    if Config and Config.Condition then self:TrackCondition(Wrapper, Config.Condition) end
 
     local Label = Instance.new("TextButton")
     Label.Size = UDim2.new(0, 0, 1, 0)
@@ -2742,8 +3031,33 @@ function Library:AddToggle(Module, Config)
         UpdateVisual()
     end
 
+    local Confirm = Config.Confirm
+
     Label.MouseButton1Click:Connect(function()
-        Toggle:Set(not Toggle.Enabled)
+        local Target = not Toggle.Enabled
+
+        if Target and Confirm then
+            self:Prompt({
+                Title = Confirm.Title or ('Enable "' .. Text .. '"?'),
+                Text = Confirm.Text or "Are you sure you want to enable this feature?",
+                Icon = Confirm.Icon,
+                ConfirmText = Confirm.ConfirmText,
+                CancelText = Confirm.CancelText,
+                OnConfirm = function()
+                    Toggle:Set(true)
+                    if Confirm.OnConfirmed then
+                        task.spawn(Confirm.OnConfirmed)
+                    end
+                end,
+                OnCancel = function()
+                    if Confirm.OnCancelled then
+                        task.spawn(Confirm.OnCancelled)
+                    end
+                end,
+            })
+        else
+            Toggle:Set(Target)
+        end
     end)
 
     Toggle.Enabled = Library.Flags[Flag]
@@ -2776,24 +3090,29 @@ function Library:AddButton(Module, Config)
     local SubText = Config.SubText or nil  
 
     local Wrapper = Instance.new("Frame")
-    Wrapper.Size = UDim2.new(1, 0, 0, 26)
+    Wrapper.Size = UDim2.new(1, 0, 0, 34)
     Wrapper.BackgroundTransparency = 1
     Wrapper.ClipsDescendants = false
     Wrapper.Parent = Module.Container
+    if Config and Config.Condition then self:TrackCondition(Wrapper, Config.Condition) end
 
- 
     local Pill = Instance.new("Frame")
-    Pill.Size = UDim2.new(1, -10, 1, 0)
-    Pill.Position = UDim2.new(0, 10, 0, 0)
+    Pill.Size = UDim2.new(1, -10, 1, -6)
+    Pill.Position = UDim2.new(0, 10, 0, 3)
     Pill.BorderSizePixel = 0
-    Pill.BackgroundTransparency = 0.85
+    Pill.BackgroundTransparency = 0.7
     Pill.Parent = Wrapper
-    self:TrackTheme(Pill, "BackgroundColor3", "Background")
+    self:TrackAccent(Pill, "BackgroundColor3", "AccentDark")
 
     local PillCorner = Instance.new("UICorner")
     PillCorner.CornerRadius = UDim.new(0, 6)
     PillCorner.Parent = Pill
 
+    local PillStroke = Instance.new("UIStroke")
+    PillStroke.Thickness = 1
+    PillStroke.Transparency = 0.65
+    PillStroke.Parent = Pill
+    self:TrackAccent(PillStroke, "Color", "Accent")
 
     local Btn = Instance.new("TextButton")
     Btn.Size = UDim2.new(1, 0, 1, 0)
@@ -2803,9 +3122,27 @@ function Library:AddButton(Module, Config)
     Btn.ZIndex = 2
     Btn.Parent = Pill
 
+    local IconImage = nil
+    local IconPadding = 0
+
+    if Config.Icon then
+        IconImage = Instance.new("ImageLabel")
+        IconImage.Size = UDim2.new(0, 18, 0, 18)
+        IconImage.AnchorPoint = Vector2.new(0, 0.5)
+        IconImage.Position = UDim2.new(0, 12, 0.5, 0)
+        IconImage.BackgroundTransparency = 1
+        IconImage.ScaleType = Enum.ScaleType.Fit
+        IconImage.ZIndex = 2
+        local Ok = pcall(function() IconImage.Image = Assets:GetImage(Config.Icon) end)
+        if Ok then
+            IconImage.Parent = Pill
+            IconPadding = 36
+        end
+    end
+
     local BtnLabel = Instance.new("TextLabel")
     BtnLabel.Size = UDim2.new(1, -12, 1, 0)
-    BtnLabel.Position = UDim2.new(0, 8, 0, 0)
+    BtnLabel.Position = UDim2.new(0, 8 + IconPadding, 0, 0)
     BtnLabel.BackgroundTransparency = 1
     BtnLabel.Text = Text
     BtnLabel.TextSize = 15
@@ -2835,20 +3172,26 @@ function Library:AddButton(Module, Config)
     end
 
     -- Press ripple effect
+    local EnableState = true
+
+    local function PillFade(Transparency)
+        TweenService:Create(Pill, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = Transparency}):Play()
+    end
+
     Btn.MouseButton1Down:Connect(function()
-        TweenService:Create(Pill, TweenInfo.new(0.08, Enum.EasingStyle.Quad), {BackgroundTransparency = 0.6}):Play()
+        TweenService:Create(Pill, TweenInfo.new(0.05, Enum.EasingStyle.Quad), {BackgroundTransparency = 0.25}):Play()
     end)
 
     Btn.MouseButton1Up:Connect(function()
-        TweenService:Create(Pill, TweenInfo.new(0.18, Enum.EasingStyle.Quad), {BackgroundTransparency = 0.85}):Play()
+        PillFade(EnableState and 0.55 or 0.9)
     end)
 
     Btn.MouseEnter:Connect(function()
-        TweenService:Create(Pill, TweenInfo.new(0.12, Enum.EasingStyle.Quad), {BackgroundTransparency = 0.75}):Play()
+        PillFade(0.55)
     end)
 
     Btn.MouseLeave:Connect(function()
-        TweenService:Create(Pill, TweenInfo.new(0.18, Enum.EasingStyle.Quad), {BackgroundTransparency = 0.85}):Play()
+        PillFade(EnableState and 0.7 or 0.9)
     end)
 
     Btn.MouseButton1Click:Connect(function()
@@ -2868,8 +3211,32 @@ function Library:AddButton(Module, Config)
     end
 
     function Button:SetEnabled(State)
+        EnableState = State
         Btn.Active = State
         BtnLabel.TextTransparency = State and 0 or 0.5
+        PillFade(State and 0.7 or 0.9)
+    end
+
+    function Button:SetTextSize(Size)
+        BtnLabel.TextSize = Size
+    end
+
+    function Button:SetIcon(Icon)
+        if not IconImage then
+            IconImage = Instance.new("ImageLabel")
+            IconImage.Size = UDim2.new(0, 18, 0, 18)
+            IconImage.AnchorPoint = Vector2.new(0, 0.5)
+            IconImage.Position = UDim2.new(0, 12, 0.5, 0)
+            IconImage.BackgroundTransparency = 1
+            IconImage.ScaleType = Enum.ScaleType.Fit
+            IconImage.ZIndex = 2
+        end
+        local Ok = pcall(function() IconImage.Image = Assets:GetImage(Icon) end)
+        IconImage.Visible = Ok
+        if Ok and not IconImage.Parent then
+            IconImage.Parent = Pill
+            BtnLabel.Position = UDim2.new(0, 44, 0, 0)
+        end
     end
 
     return Button
@@ -2895,6 +3262,7 @@ function Library:AddKeybind(Module, Config)
     Wrapper.BackgroundTransparency = 1
     Wrapper.ClipsDescendants = false
     Wrapper.Parent = Module.Container
+    if Config and Config.Condition then self:TrackCondition(Wrapper, Config.Condition) end
 
     local WrapperPad = Instance.new("UIPadding")
     WrapperPad.PaddingLeft = UDim.new(0, 10)
@@ -3061,6 +3429,7 @@ function Library:AddColorPicker(Module, Config)
     Wrapper.ClipsDescendants = false
     Wrapper.AutomaticSize = Enum.AutomaticSize.None
     Wrapper.Parent = Module.Container
+    if Config and Config.Condition then self:TrackCondition(Wrapper, Config.Condition) end
 
     local Row = Instance.new("Frame")
     Row.Size = UDim2.new(1, 0, 0, 28)
@@ -3384,6 +3753,7 @@ function Library:AddSlider(Module, Config)
     Container.AutomaticSize = Enum.AutomaticSize.Y
     Container.ClipsDescendants = false
     Container.Parent = Module.Container
+    if Config and Config.Condition then self:TrackCondition(Container, Config.Condition) end
 
     local ContainerPadding = Instance.new("UIPadding")
     ContainerPadding.PaddingLeft = UDim.new(0, 10)
@@ -3663,6 +4033,7 @@ function Library:AddCarousel(Module, Config)
     MainContainer.AutomaticSize = Enum.AutomaticSize.Y
     MainContainer.ClipsDescendants = false
     MainContainer.Parent = Module.Container
+    if Config and Config.Condition then self:TrackCondition(MainContainer, Config.Condition) end
 
     local MainPadding = Instance.new("UIPadding")
     MainPadding.PaddingLeft = UDim.new(0, 10)
@@ -3818,6 +4189,7 @@ function Library:AddTextBox(Module, Config)
     Wrapper.BackgroundTransparency = 1
     Wrapper.ClipsDescendants = false
     Wrapper.Parent = Module.Container
+    if Config and Config.Condition then self:TrackCondition(Wrapper, Config.Condition) end
 
     local Row = Instance.new("Frame")
     Row.Size = UDim2.new(1, 0, 0, 28)
@@ -3840,7 +4212,7 @@ function Library:AddTextBox(Module, Config)
     self:TrackTheme(NameLabel, "TextColor3", "Text")
 
     local Input = Instance.new("TextBox")
-    Input.Size = UDim2.new(0, 120, 0, 22)
+    Input.Size = UDim2.new(0, 130, 0, 24)
     Input.AnchorPoint = Vector2.new(1, 0.5)
     Input.Position = UDim2.new(1, 0, 0.5, 0)
     Input.BackgroundTransparency = 0.6
@@ -3848,8 +4220,9 @@ function Library:AddTextBox(Module, Config)
     Input.PlaceholderText = Placeholder
     Input.PlaceholderColor3 = Color3.fromRGB(128, 128, 128)
     Input.Text = Library.Flags[Flag]
-    Input.TextSize = 13
-    Input.TextXAlignment = Enum.TextXAlignment.Center
+    Input.TextSize = 12.5
+    pcall(function() Input.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Regular, Enum.FontStyle.Normal) end)
+    Input.TextXAlignment = Enum.TextXAlignment.Left
     Input.ClearTextOnFocus = false
     Input.Parent = Row
     self:TrackTheme(Input, "BackgroundColor3", "Background")
@@ -3858,6 +4231,11 @@ function Library:AddTextBox(Module, Config)
     local InputCorner = Instance.new("UICorner")
     InputCorner.CornerRadius = UDim.new(0, 5)
     InputCorner.Parent = Input
+
+    local InputPad = Instance.new("UIPadding")
+    InputPad.PaddingLeft = UDim.new(0, 8)
+    InputPad.PaddingRight = UDim.new(0, 8)
+    InputPad.Parent = Input
 
     local InputStroke = Instance.new("UIStroke")
     InputStroke.Thickness = 1
@@ -3950,6 +4328,7 @@ function Library:AddDropdown(Module, Config)
     Wrapper.ClipsDescendants = false
     Wrapper.AutomaticSize = Enum.AutomaticSize.None
     Wrapper.Parent = Module.Container
+    if Config and Config.Condition then self:TrackCondition(Wrapper, Config.Condition) end
 
     local Header = Instance.new("Frame")
     Header.Size = UDim2.new(1, 0, 0, 28)
@@ -4392,6 +4771,7 @@ function Library:AddSection(Module, Config)
 
     self:TrackAccent(Section, "TextColor3", "Accent")
 
+    if Config and Config.Condition then self:TrackCondition(Section, Config.Condition) end
     return Section
 end
 
@@ -4402,6 +4782,7 @@ function Library:AddDivider(Module, Config)
     Holder.Size = UDim2.new(1, 0, 0, Config.PaddingY or 8)
     Holder.BackgroundTransparency = 1
     Holder.Parent = Module.Container
+    if Config and Config.Condition then self:TrackCondition(Holder, Config.Condition) end
 
     local Line = Instance.new("Frame")
     Line.Size = UDim2.new(1, -20, 0, 1)
@@ -4431,6 +4812,7 @@ function Library:AddProgress(Module, Config)
     Wrapper.BackgroundTransparency = 1
     Wrapper.ClipsDescendants = false
     Wrapper.Parent = Module.Container
+    if Config and Config.Condition then self:TrackCondition(Wrapper, Config.Condition) end
 
     local Row = Instance.new("Frame")
     Row.Size = UDim2.new(1, 0, 0, 24)
@@ -4576,6 +4958,7 @@ function Library:AddDropdownMultiSelect(Module, Config)
     Wrapper.ClipsDescendants = false
     Wrapper.AutomaticSize = Enum.AutomaticSize.None
     Wrapper.Parent = Module.Container
+    if Config and Config.Condition then self:TrackCondition(Wrapper, Config.Condition) end
 
     -- Header row
     local Header = Instance.new("Frame")
