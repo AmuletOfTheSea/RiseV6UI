@@ -1,5 +1,21 @@
 local HttpService = game:GetService("HttpService")
-local FileManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/AmuletOfTheSea/RiseV6UI/main/Systems/FileManager.lua"))()
+
+local function LoadFileManager()
+    local Genv = getgenv and getgenv() or _G
+    if Genv.RiseV6Modules and Genv.RiseV6Modules["FileManager.lua"] then
+        return loadstring(Genv.RiseV6Modules["FileManager.lua"])()
+    end
+
+    local Ok, Source = pcall(readfile, "RiseV6UI/Systems/FileManager.lua")
+    if Ok and Source and #Source > 0 then
+        local Factory, Err = loadstring(Source)
+        if Factory then return Factory() end
+    end
+
+    return loadstring(game:HttpGet("https://raw.githubusercontent.com/AmuletOfTheSea/RiseV6UI/main/Systems/FileManager.lua"))()
+end
+
+local FileManager = LoadFileManager()
 
 local function AssetLoader()
     local VersionPath = "RiseV6UI/.version"
