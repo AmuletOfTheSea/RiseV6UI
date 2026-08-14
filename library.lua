@@ -1056,6 +1056,8 @@ function Library:CreateWindow(Options)
     Options = Options or {}
     local Name = Options.Name or "Window"
 
+    EnsureGuis()
+
     if self.Window then
         return self.Window
     end
@@ -1852,6 +1854,8 @@ end
 
 function Library:AddRadar(Tab, Config)
     Config = Config or {}
+
+    EnsureGuis()
 
     local FrameSize = Config.Size or 200
     local DetectRange = Config.Range or 500
@@ -4976,6 +4980,8 @@ local ConfigSystem = ConfigSystemFactory(Library)
 ConfigsTab:AddConfig(ConfigSystem)
 
 -- (Removed hardcoded RightControl/RightShift toggle — handled by the Keybind system)
+
+EnsureGuis()
 
 local PreviousMouseBehavior = UserInputService.MouseBehavior
 local PreviousMouseIconEnabled = UserInputService.MouseIconEnabled
