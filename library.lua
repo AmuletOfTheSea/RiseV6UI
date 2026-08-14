@@ -5602,7 +5602,7 @@ setmetatable(Library.Flags, {
 
         local Callback = Library.OnFlagChanged
         if Callback then
-            Callback(Key)
+            pcall(Callback, Key)
         end
     end,
 })
