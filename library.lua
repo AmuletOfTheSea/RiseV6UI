@@ -83,11 +83,13 @@ if getgenv().LibraryInstance then
 end
 
 local Library = {
+    Version = "1.5.0",
     ThemeObjects = {},
     AccentObjects = {},
     LoadConfig = nil,
     CurrentConfig = nil,
     Flags = {},
+    Defaults = {},
     Modules = {},
     Labels = {},
     Toggles = {},
@@ -373,6 +375,33 @@ function Library:GetControl(Flag)
         end
     end
     return nil
+end
+
+-- Resets every flagged control back to the value it was created with.
+-- Works for toggles, sliders, carousels, dropdowns (single + multi), keybinds,
+-- color pickers, text boxes and progress bars.
+function Library:ResetToDefaults()
+    for Flag, DefaultValue in pairs(self.Defaults or {}) do
+        local Control = self:GetControl(Flag)
+
+        if Control then
+            if Control.SetKey then
+                Control:SetKey(DefaultValue)
+            elseif Control.SetSelected then
+                Control:SetSelected(DefaultValue)
+            elseif Control.SetText then
+                Control:SetText(DefaultValue)
+            elseif Control.Set then
+                Control:Set(DefaultValue)
+            elseif Control.SetValue then
+                Control:SetValue(DefaultValue)
+            end
+        else
+            self.Flags[Flag] = DefaultValue
+        end
+    end
+
+    self:RefreshConditions()
 end
 
 function Library:TrackCondition(Object, ConditionFn)
@@ -2673,14 +2702,96 @@ function Library:AddConfig(Tab, ConfigSystem)
     Layout.Padding = UDim.new(0, 6)
     Layout.Parent = List
 
+    -- ── Profile tools: picker, auto-save, description, reset, import ──────
+    local Tools = Instance.new("Frame")
+    Tools.Size = UDim2.new(1, 0, 0, 0)
+    Tools.AutomaticSize = Enum.AutomaticSize.Y
+    Tools.BackgroundTransparency = 1
+    Tools.Parent = Holder
+
+    local ToolsLayout = Instance.new("UIListLayout")
+    ToolsLayout.Padding = UDim.new(0, 6)
+    ToolsLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    ToolsLayout.Parent = Tools
+
+    -- Controls live in a real module normally; a container is all they need.
+    local FakeModule = { Container = Tools }
+
+    local ProfilePicker = self:AddDropdown(FakeModule, {
+        Text = "Profile",
+        Flag = "Configs.Profile",
+        Options = ConfigSystem:List(),
+        Default = ConfigSystem:GetAutoLoad(),
+        MaxHeight = 150,
+        OnChange = function(Value)
+            if Value and Value ~= "" then
+                ConfigSystem:SwitchProfile(Value)
+                Input.Text = Value
+                Refresh()
+            end
+        end,
+    })
+
+    local AutoSaveToggle = self:AddToggle(FakeModule, {
+        Text = "Auto-Save",
+        Flag = "Configs.AutoSave",
+        Default = ConfigSystem.AutoSaveEnabled,
+        OnEnabled = function()
+            ConfigSystem:SetAutoSave(true)
+        end,
+        OnDisabled = function()
+            ConfigSystem:SetAutoSave(false)
+        end,
+    })
+
+    local DescInput = self:AddTextBox(FakeModule, {
+        Text = "Description",
+        Flag = "Configs.Description",
+        Placeholder = "What is this config for?",
+    })
+
+    local ResetDefaults = self:AddButton(FakeModule, {
+        Text = "Reset to Defaults",
+        Callback = function()
+            Library:ResetToDefaults()
+            Library:Success("All settings reset to defaults")
+            ConfigSystem:ScheduleSave()
+        end,
+    })
+
+    local ImportInput = self:AddTextBox(FakeModule, {
+        Text = "Import Code",
+        Flag = "Configs.Import",
+        Placeholder = "Paste a share code...",
+    })
+
+    local ImportButton = self:AddButton(FakeModule, {
+        Text = "Import Config",
+        Callback = function()
+            local Code = ImportInput:GetText()
+            if Code == "" then return end
+
+            local Ok = ConfigSystem:Import(Code)
+            if Ok then
+                Library:Success("Config imported")
+                Refresh()
+            else
+                Library:Error("Invalid config code")
+            end
+        end,
+    })
+
     local AutoButtons = {}
     local Labels = {}
 
     local function UpdateHolderSize()
-        Holder.Size = UDim2.new(1, -8, 0, 40 + Layout.AbsoluteContentSize.Y + 6)
+        local ToolsHeight = Tools.AbsoluteSize.Y
+        List.Position = UDim2.new(0, 6, 0, 40 + ToolsHeight)
+        Holder.Size = UDim2.new(1, -8, 0, 40 + ToolsHeight + Layout.AbsoluteContentSize.Y + 12)
     end
 
     Layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(UpdateHolderSize)
+    Tools:GetPropertyChangedSignal("AbsoluteSize"):Connect(UpdateHolderSize)
 
     local function UpdateAutoVisuals()
         local AutoLoad = ConfigSystem:GetAutoLoad()
@@ -2727,12 +2838,9 @@ function Library:AddConfig(Tab, ConfigSystem)
     local function CreateItem(Name)
         local CleanName = tostring(Name):gsub("^.*[\\/]", ""):gsub("%.cfg$", "")
         local Path = ConfigSystem:GetPath(CleanName)
-        local Description = ""
 
-        if isfile(Path) then
-            local Raw = readfile(Path)
-            Description = Raw:match("^%-%-%s*(.-)\n") or ""
-        end
+        local Info = ConfigSystem:GetInfo(CleanName)
+        local Description = Info.Description or ""
 
         local HasDesc = Description ~= ""
 
@@ -2799,15 +2907,19 @@ function Library:AddConfig(Tab, ConfigSystem)
 
         Item.MouseButton1Click:Connect(function()
             Library.CurrentConfig = CleanName
+            Input.Text = CleanName
             UpdateLoadedVisuals()
             ConfigSystem:Load(CleanName)
         end)
 
         Copy.MouseButton1Click:Connect(function()
             PressEffect(Copy)
-            local Path = ConfigSystem:GetPath(CleanName)
-            if isfile(Path) then
-                setclipboard(readfile(Path))
+
+            local Code, Err = ConfigSystem:CopyExport(CleanName)
+            if Code then
+                Library:Success("Share code copied to clipboard")
+            else
+                Library:Error("Clipboard unavailable: " .. tostring(Err))
             end
         end)
 
@@ -2840,6 +2952,7 @@ function Library:AddConfig(Tab, ConfigSystem)
                 ConfigSystem:SetAutoLoad(CleanName)
                 Library.LoadConfig = CleanName
                 Library.CurrentConfig = CleanName
+                Input.Text = CleanName
             end
 
             UpdateAutoVisuals()
@@ -2865,6 +2978,8 @@ function Library:AddConfig(Tab, ConfigSystem)
             CreateItem(Name)
         end
 
+        ProfilePicker:SetOptions(ConfigSystem:List(), true)
+
         UpdateAutoVisuals()
         UpdateHolderSize()
         UpdateLoadedVisuals()
@@ -2873,7 +2988,10 @@ function Library:AddConfig(Tab, ConfigSystem)
     Save.MouseButton1Click:Connect(function()
         local Name = Input.Text ~= "" and Input.Text or "Default"
         Library.CurrentConfig = Name
-        ConfigSystem:Save(Name)
+        ConfigSystem:Save(Name, DescInput:GetText())
+        ConfigSystem:SetAutoLoad(Name)
+        Library.LoadConfig = Name
+        Input.Text = Name
         Refresh()
     end)
 
@@ -2928,6 +3046,7 @@ function Library:AddToggle(Module, Config)
     Module.Toggles[Flag] = Toggle
 
     Library.Flags[Flag] = Library.Flags[Flag] ~= nil and Library.Flags[Flag] or Default
+    Library.Defaults[Flag] = Default
 
     Library.ToggleMap = Library.ToggleMap or {}
     Library.ToggleMap[Flag] = Toggle
@@ -3367,7 +3486,8 @@ function Library:AddKeybind(Module, Config)
                 return
             end
 
-            Library.Flags[Flag] = CurrentKey
+    Library.Flags[Flag] = CurrentKey
+    Library.Defaults[Flag] = Default
             UpdateLabel()
             task.spawn(OnChange, CurrentKey)
         end)
@@ -3444,6 +3564,7 @@ function Library:AddColorPicker(Module, Config)
 
     local H, S, V = Color3.toHSV(Default)
     Library.Flags[Flag] = Default
+    Library.Defaults[Flag] = Default
 
     local Wrapper = Instance.new("Frame")
     Wrapper.Size = UDim2.new(1, 0, 0, 28)
@@ -3766,6 +3887,7 @@ function Library:AddSlider(Module, Config)
     Module.Sliders = Module.Sliders or {}
 
     Library.Flags[Flag] = Library.Flags[Flag] ~= nil and Library.Flags[Flag] or Default
+    Library.Defaults[Flag] = Default
 
     Library.SliderMap = Library.SliderMap or {}
 
@@ -3926,6 +4048,7 @@ function Library:AddSlider(Module, Config)
             Library.Flags[Flag] = {Min = CurrentMinimum, Max = CurrentValue}
         else
             Library.Flags[Flag] = CurrentValue
+    Library.Defaults[Flag] = Default
         end
         UpdateVisual()
         OnChange(CurrentValue, DualHandle and CurrentMinimum or nil)
@@ -4266,8 +4389,9 @@ function Library:AddTextBox(Module, Config)
     self:TrackTheme(InputStroke, "Color", "Text")
 
     local function ApplyText()
-        Library.Flags[Flag] = Input.Text
-        task.spawn(OnChange, Input.Text)
+Library.Flags[Flag] = Input.Text
+    Library.Defaults[Flag] = Default
+    task.spawn(OnChange, Input.Text)
     end
 
     Input.FocusLost:Connect(function(EnterPressed)
@@ -4343,6 +4467,7 @@ function Library:AddDropdown(Module, Config)
 
     local CurrentValue = CurrentIndex > 0 and Options[CurrentIndex] or nil
     Library.Flags[Flag] = CurrentValue
+    Library.Defaults[Flag] = Default
 
     local Wrapper = Instance.new("Frame")
     Wrapper.Size = UDim2.new(1, 0, 0, 28)
@@ -4464,6 +4589,7 @@ function Library:AddDropdown(Module, Config)
 
     local function UpdateFlag()
         Library.Flags[Flag] = CurrentValue
+    Library.Defaults[Flag] = Default
         task.spawn(OnChange, CurrentValue, CurrentIndex)
     end
 
@@ -4828,6 +4954,7 @@ function Library:AddProgress(Module, Config)
     local MaxValue = Config.Max or 100
 
     Library.Flags[Flag] = CurrentValue
+    Library.Defaults[Flag] = CurrentValue
 
     local Wrapper = Instance.new("Frame")
     Wrapper.Size = UDim2.new(1, 0, 0, 32)
@@ -5359,6 +5486,7 @@ function Library:AddDropdownMultiSelect(Module, Config)
 
     Library.DropdownMap = Library.DropdownMap or {}
     Library.DropdownMap[Flag] = Dropdown
+    Library.Defaults[Flag] = Default
     Library.Flags[Flag] = GetSelected()
 
     return Dropdown
@@ -5382,6 +5510,13 @@ local ConfigsTab = Window:AddTab({
 })
 
 local ConfigSystem = ConfigSystemFactory(Library)
+
+-- Auto-save: any flag change schedules a debounced save into the active profile
+Library.OnFlagChanged = function(Flag)
+    if ConfigSystem.AutoSaveEnabled == false then return end
+    ConfigSystem:ScheduleSave()
+end
+
 ConfigsTab:AddConfig(ConfigSystem)
 
 -- (Removed hardcoded RightControl/RightShift toggle — handled by the Keybind system)
@@ -5457,5 +5592,44 @@ Library:RenderStepped(function()
         Pos.Y - Inset.Y
     )
 end)
+
+-- Flag change hook: fires whenever any control writes Library.Flags[...].
+-- Set Library.OnFlagChanged = function(Flag) end to observe changes
+-- (the ConfigSystem uses this for auto-save).
+setmetatable(Library.Flags, {
+    __newindex = function(Table, Key, Value)
+        rawset(Table, Key, Value)
+
+        local Callback = Library.OnFlagChanged
+        if Callback then
+            Callback(Key)
+        end
+    end,
+})
+
+-- Compares the running build against version.txt in the repo and notifies
+-- once per session if an update is available. Fails silently on errors
+-- (no GitHub access, offline, etc.).
+function Library:CheckForUpdates()
+    task.spawn(function()
+        local Ok, Result = pcall(function()
+            return game:GetService("HttpService"):HttpGet(
+                "https://raw.githubusercontent.com/AmuletOfTheSea/RiseV6UI/main/version.txt",
+                true
+            )
+        end)
+
+        if Ok and Result then
+            local Latest = tostring(Result):match("%d+%.%d+%.%d+")
+            local Current = tostring(self.Version or "")
+
+            if Latest and Current ~= "" and Latest ~= Current then
+                self:Warning("Rise V6 UI update available: v" .. Latest .. " (running v" .. Current .. ")")
+            end
+        end
+    end)
+end
+
+Library:CheckForUpdates()
 
 return Library
