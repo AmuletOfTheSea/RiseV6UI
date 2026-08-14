@@ -17,10 +17,112 @@ end
 
 local FileManager = LoadFileManager()
 
+-- Minimal Base64 codec (works on any executor, no dependencies)
+local Base64Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+
+local function Base64Encode(Value)
+    local Result = {}
+
+    for Index = 1, #Value, 3 do
+        local B1 = Value:byte(Index) or 0
+        local B2 = Value:byte(Index + 1) or 0
+        local B3 = Value:byte(Index + 2) or 0
+
+        local N = B1 * 65536 + B2 * 256 + B3
+
+        Result[#Result + 1] = Base64Chars:sub(N // 262144 + 1, N // 262144 + 1)
+        Result[#Result + 1] = Base64Chars:sub(N // 4096 % 64 + 1, N // 4096 % 64 + 1)
+        Result[#Result + 1] = Base64Chars:sub(N // 64 % 64 + 1, N // 64 % 64 + 1)
+        Result[#Result + 1] = Base64Chars:sub(N % 64 + 1, N % 64 + 1)
+    end
+
+    local Padding = #Value % 3
+    if Padding == 1 then
+        Result[#Result - 1] = "="
+        Result[#Result] = "="
+    elseif Padding == 2 then
+        Result[#Result] = "="
+    end
+
+    return table.concat(Result)
+end
+
+local function Base64Decode(Value)
+    Value = tostring(Value):gsub("%s", "")
+
+    local Data = {}
+    for Index = 1, #Value do
+        local Pos = Base64Chars:find(Value:sub(Index, Index), 1, true)
+        Data[Index] = (Pos and Pos - 1) or 0
+    end
+
+    local Result = {}
+    for Index = 1, #Value, 4 do
+        local N = (Data[Index] or 0) * 262144
+            + (Data[Index + 1] or 0) * 4096
+            + (Data[Index + 2] or 0) * 64
+            + (Data[Index + 3] or 0)
+
+        if Index + 2 <= #Value then
+            Result[#Result + 1] = string.char(N // 65536)
+        end
+        if Index + 3 <= #Value then
+            Result[#Result + 1] = string.char(N // 256 % 256)
+        end
+        if Index + 4 <= #Value then
+            Result[#Result + 1] = string.char(N % 256)
+        end
+    end
+
+    return table.concat(Result)
+end
+
+local function CopyToClipboard(Text)
+    local Ok, Err = pcall(function()
+        if setclipboard then
+            setclipboard(Text)
+        elseif toclipboard then
+            toclipboard(Text)
+        elseif set_clipboard then
+            set_clipboard(Text)
+        else
+            error("no clipboard function available")
+        end
+    end)
+
+    return Ok, Err
+end
+
 local function NewConfigSystem(Library)
     local ConfigSystem = {}
 
     ConfigSystem.BasePath = "RiseV6UI/Configs/" .. tostring(game.GameId)
+
+    -- Current schema version. Older files are migrated through ConfigSystem.Migrations.
+    ConfigSystem.SchemaVersion = 2
+    ConfigSystem.Migrations = {
+        -- v1 -> v2: old files had no Version field. Normalize keybind entries so
+        -- the migration pipeline has a clean baseline for future schema changes.
+        [2] = function(Data)
+            for ModuleFlag, ModuleData in pairs(Data) do
+                if type(ModuleData) == "table" and type(ModuleData.Keybinds) == "table" then
+                    for KeyFlag, Key in pairs(ModuleData.Keybinds) do
+                        if type(Key) ~= "string" then
+                            ModuleData.Keybinds[KeyFlag] = ""
+                        end
+                    end
+                end
+            end
+            return Data
+        end,
+    }
+
+    -- Auto-save: enabled by default; saves into the active profile 1.5s
+    -- after the last flag change (debounced).
+    ConfigSystem.AutoSaveEnabled = true
+    ConfigSystem.AutoSaveName = nil
+    ConfigSystem.AutoSaveDebounce = nil
+    ConfigSystem.CurrentProfile = nil
 
     function ConfigSystem:Init()
         FileManager:CreateFolder(self.BasePath)
@@ -327,11 +429,39 @@ local function NewConfigSystem(Library)
     function ConfigSystem:Save(Name, Description)
         local Path = self:GetPath(Name)
         local Data = self:Build()
-        local Encoded = self:Prettify(Data)
 
-        local Comment = Description and ("-- " .. Description .. "\n") or ""
+        local Wrapped = {
+            Version = self.SchemaVersion,
+            Description = Description or "",
+            Config = Data
+        }
 
-        FileManager:WriteFile(Path, Comment .. Encoded)
+        FileManager:WriteFile(Path, HttpService:JSONEncode(Wrapped))
+
+        self.CurrentProfile = Name
+        self.AutoSaveName = Name
+    end
+
+    -- Strips legacy "-- description" comment lines from old-format files
+    function ConfigSystem:SanitizeRaw(Raw)
+        while Raw:match("^%s*%-%-") do
+            Raw = Raw:gsub("^%s*%-%-[^\n]*\n?", "")
+        end
+        return Raw
+    end
+
+    -- Migrates config data from an older schema to the current one
+    function ConfigSystem:Migrate(Data, FromVersion)
+        for Version = FromVersion + 1, self.SchemaVersion do
+            local Migration = self.Migrations[Version]
+            if Migration then
+                local Result = Migration(Data)
+                if Result then
+                    Data = Result
+                end
+            end
+        end
+        return Data
     end
 
     function ConfigSystem:Load(Name)
@@ -341,19 +471,154 @@ local function NewConfigSystem(Library)
             return
         end
 
-        local Raw = FileManager:ReadFile(Path)
-
-        while Raw:match("^%s*%-%-") do
-            Raw = Raw:gsub("^%s*%-%-[^\n]*\n?", "")
-        end
+        local Raw = self:SanitizeRaw(FileManager:ReadFile(Path))
 
         local Success, Decoded = pcall(function()
             return HttpService:JSONDecode(Raw)
         end)
 
-        if Success and Decoded then
-            self:Apply(Decoded)
+        if not (Success and Decoded) then
+            return
         end
+
+        -- New format: { Version, Description, Config = ... }.
+        -- Old format: the config table is the file root itself (v1).
+        local Version = tonumber(Decoded.Version) or 1
+        local Data = Decoded.Config or Decoded
+
+        if Version < self.SchemaVersion then
+            Data = self:Migrate(Data, Version)
+        end
+
+        self:Apply(Data)
+        self.CurrentProfile = Name
+        self.AutoSaveName = Name
+
+        if Library then
+            Library.CurrentConfig = Name
+        end
+    end
+
+    -- Reads the header of a saved config (description + schema version)
+    function ConfigSystem:GetInfo(Name)
+        local Path = self:GetPath(Name)
+
+        if not FileManager:IsFile(Path) then
+            return {}
+        end
+
+        local Raw = self:SanitizeRaw(FileManager:ReadFile(Path))
+
+        local Success, Decoded = pcall(function()
+            return HttpService:JSONDecode(Raw)
+        end)
+
+        if Success and type(Decoded) == "table" then
+            return {
+                Description = Decoded.Config and (Decoded.Description or "") or "",
+                Version = tonumber(Decoded.Version) or 1
+            }
+        end
+
+        return {}
+    end
+
+    -- ── Auto-save (debounced) ─────────────────────────────────────────────
+    function ConfigSystem:SetAutoSave(State)
+        self.AutoSaveEnabled = State == true
+
+        if self.AutoSaveEnabled then
+            self:ScheduleSave()
+        end
+    end
+
+    function ConfigSystem:ScheduleSave()
+        if self.AutoSaveEnabled == false then return end
+
+        if self.AutoSaveDebounce then
+            self.AutoSaveDebounce:Cancel()
+        end
+
+        self.AutoSaveDebounce = task.delay(1.5, function()
+            self.AutoSaveDebounce = nil
+            self:Save(self.AutoSaveName or self.CurrentProfile or "Default")
+        end)
+    end
+
+    -- ── Profiles ──────────────────────────────────────────────────────────
+    function ConfigSystem:SwitchProfile(Name)
+        if Name == nil or Name == "" then return end
+
+        self:SetAutoLoad(Name)
+        self.CurrentProfile = Name
+        self.AutoSaveName = Name
+
+        if Library then
+            Library.LoadConfig = Name
+            Library.CurrentConfig = Name
+        end
+
+        self:Load(Name)
+    end
+
+    -- ── Sharing: export/import as a Base64 string ─────────────────────────
+    function ConfigSystem:Export(Name)
+        Name = Name or self.CurrentProfile or "Default"
+
+        local Info = self:GetInfo(Name)
+        local Packed = {
+            Version = self.SchemaVersion,
+            Name = Name,
+            Description = Info.Description or "",
+            Config = self:Build()
+        }
+
+        return Base64Encode(HttpService:JSONEncode(Packed))
+    end
+
+    -- Copies the shareable code to the clipboard; returns the code itself
+    function ConfigSystem:CopyExport(Name)
+        local Code = self:Export(Name)
+        local Ok, Err = CopyToClipboard(Code)
+
+        if Ok then
+            return Code
+        end
+
+        return nil, Err
+    end
+
+    function ConfigSystem:Import(Code)
+        local Ok, Json = pcall(Base64Decode, Code)
+        if not Ok or not Json or Json == "" then
+            return false
+        end
+
+        local Success, Decoded = pcall(function()
+            return HttpService:JSONDecode(Json)
+        end)
+        if not (Success and type(Decoded) == "table") then
+            return false
+        end
+
+        local Version = tonumber(Decoded.Version) or 1
+        local Data = Decoded.Config or Decoded
+
+        if Version < self.SchemaVersion then
+            Data = self:Migrate(Data, Version)
+        end
+
+        self:Apply(Data)
+
+        local Name = tostring(Decoded.Name or "Imported")
+        self:Save(Name, Decoded.Description or "")
+        self:SetAutoLoad(Name)
+
+        if Library then
+            Library.CurrentConfig = Name
+        end
+
+        return true
     end
 
     function ConfigSystem:List()
