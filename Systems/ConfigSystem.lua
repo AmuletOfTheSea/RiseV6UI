@@ -1,4 +1,340 @@
-local HttpService = game:GetService("HttpService")
+-- ── Fast pure-Luau JSON codec ──────────────────────────────────────────
+-- HttpService:JSONEncode/JSONDecode are slow inside executors (often a
+-- pure-Lua implementation that takes multiple seconds on large configs),
+-- and string-concat pretty printers are O(n^2). This codec is single-pass
+-- with table.concat buffering: linear time, identical output format.
+
+local JsonEscapes = {
+    ['"'] = '\\"',
+    ['\\'] = '\\\\',
+    ['\n'] = '\\n',
+    ['\r'] = '\\r',
+    ['\t'] = '\\t',
+    ['\b'] = '\\b',
+    ['\f'] = '\\f',
+}
+
+local function JsonEncode(Value, Compact)
+    local Buffer = {}
+    local Count = 0
+
+    local function Push(Text)
+        Count = Count + 1
+        Buffer[Count] = Text
+    end
+
+    local function Encode(Value, Indent)
+        local ValueType = type(Value)
+
+        if ValueType == "table" then
+            local IsArray = (#Value > 0)
+            local Padding = ""
+            local NextPadding = ""
+
+            if not Compact then
+                Padding = string.rep("    ", Indent)
+                NextPadding = string.rep("    ", Indent + 1)
+            end
+
+            local Entries = 0
+            for _, Item in pairs(Value) do
+                if Item ~= nil then
+                    Entries = Entries + 1
+                end
+            end
+
+            if Entries == 0 then
+                Push(IsArray and "[]" or "{}")
+                return
+            end
+
+            Push(IsArray and "[" or "{")
+            if not Compact then
+                Push("\n")
+            end
+
+            local Written = 0
+            for Key, Item in pairs(Value) do
+                if Item ~= nil then
+                    if Written > 0 then
+                        Push(",")
+                        if not Compact then
+                            Push("\n")
+                        end
+                    end
+                    Written = Written + 1
+
+                    if not Compact then
+                        Push(NextPadding)
+                    end
+
+                    if not IsArray then
+                        Push('"' .. tostring(Key):gsub('["\\\n\r\t\b\f]', JsonEscapes) .. '"')
+                        Push(Compact and ":" or ": ")
+                    end
+
+                    Encode(Item, Indent + 1)
+                end
+            end
+
+            if not Compact then
+                Push("\n" .. Padding)
+            end
+            Push(IsArray and "]" or "}")
+        elseif ValueType == "string" then
+            Push('"' .. Value:gsub('["\\\n\r\t\b\f]', JsonEscapes) .. '"')
+        elseif ValueType == "number" then
+            if Value ~= Value or Value == math.huge or Value == -math.huge then
+                Push("0")
+            else
+                Push(tostring(Value))
+            end
+        elseif ValueType == "boolean" then
+            Push(Value and "true" or "false")
+        else
+            Push("null")
+        end
+    end
+
+    Encode(Value, 0)
+    return table.concat(Buffer)
+end
+
+local function JsonDecode(Text)
+    Text = tostring(Text)
+    local Length = #Text
+    local Position = 1
+
+    local function SkipWhitespace()
+        while Position <= Length do
+            local Char = Text:byte(Position)
+            if Char == 32 or Char == 9 or Char == 10 or Char == 13 then
+                Position = Position + 1
+            else
+                return
+            end
+        end
+    end
+
+    local function ParseString(Start)
+        local Chunks = {}
+        local ChunkCount = 0
+        Position = Start + 1
+
+        while Position <= Length do
+            local ChunkStart = Position
+            local NextPos = Text:find('["\\]', Position)
+
+            if not NextPos then
+                return nil
+            end
+
+            if Text:byte(NextPos) == 34 then -- closing "
+                if NextPos > ChunkStart then
+                    ChunkCount = ChunkCount + 1
+                    Chunks[ChunkCount] = Text:sub(ChunkStart, NextPos - 1)
+                end
+                Position = NextPos + 1
+                return table.concat(Chunks)
+            end
+
+            -- escape sequence at NextPos
+            if NextPos > ChunkStart then
+                ChunkCount = ChunkCount + 1
+                Chunks[ChunkCount] = Text:sub(ChunkStart, NextPos - 1)
+            end
+
+            local EscChar = Text:byte(NextPos + 1)
+            local Escaped = EscChar and ({
+                [34] = '"',
+                [47] = "/",
+                [92] = "\\",
+                [98] = "\b",
+                [102] = "\f",
+                [110] = "\n",
+                [114] = "\r",
+                [116] = "\t",
+            })[EscChar]
+
+            if Escaped then
+                ChunkCount = ChunkCount + 1
+                Chunks[ChunkCount] = Escaped
+                Position = NextPos + 2
+            elseif EscChar == 117 then -- 'u'
+                local Code = tonumber(Text:sub(NextPos + 2, NextPos + 5), 16)
+                Position = NextPos + 6
+
+                if Code and Code >= 0xD800 and Code <= 0xDBFF then
+                    if Text:sub(NextPos + 6, NextPos + 7) == "\\u" then
+                        local Low = tonumber(Text:sub(NextPos + 8, NextPos + 11), 16)
+                        if Low and Low >= 0xDC00 and Low <= 0xDFFF then
+                            Code = 0x10000 + (Code - 0xD800) * 0x400 + (Low - 0xDC00)
+                            Position = NextPos + 12
+                        end
+                    end
+                end
+
+                if Code then
+                    local Ok, Char8 = pcall(utf8.char, Code)
+                    if Ok then
+                        ChunkCount = ChunkCount + 1
+                        Chunks[ChunkCount] = Char8
+                    end
+                end
+            else
+                return nil
+            end
+        end
+
+        return nil
+    end
+
+    local function ParseValue()
+        SkipWhitespace()
+        if Position > Length then
+            return nil, false
+        end
+
+        local Char = Text:byte(Position)
+
+        if Char == 34 then -- "
+            local String = ParseString(Position)
+            if String == nil then
+                return nil, false
+            end
+            return String, true
+        end
+
+        if Char == 123 or Char == 91 then -- { or [
+            local IsObject = Char == 123
+            local Result = {}
+            local Count = 0
+            Position = Position + 1
+            SkipWhitespace()
+
+            if Text:byte(Position) == (IsObject and 125 or 93) then -- } or ]
+                Position = Position + 1
+                return Result, true
+            end
+
+            while true do
+                if IsObject then
+                    SkipWhitespace()
+                    local Key = ParseString(Position)
+                    if Key == nil then
+                        return nil, false
+                    end
+                    SkipWhitespace()
+                    if Text:byte(Position) ~= 58 then -- :
+                        return nil, false
+                    end
+                    Position = Position + 1
+
+                    local Item, ItemOk = ParseValue()
+                    if not ItemOk then
+                        return nil, false
+                    end
+                    Result[Key] = Item
+                else
+                    local Item, ItemOk = ParseValue()
+                    if not ItemOk then
+                        return nil, false
+                    end
+                    Count = Count + 1
+                    Result[Count] = Item
+                end
+
+                SkipWhitespace()
+                local NextByte = Text:byte(Position)
+                if NextByte == 44 then -- ,
+                    Position = Position + 1
+                elseif NextByte == (IsObject and 125 or 93) then
+                    Position = Position + 1
+                    return Result, true
+                else
+                    return nil, false
+                end
+            end
+        end
+
+        if Char == 45 or (Char >= 48 and Char <= 57) then -- number
+            local Start = Position
+            Position = Position + 1
+
+            while Position <= Length do
+                local Byte = Text:byte(Position)
+                if (Byte >= 48 and Byte <= 57) or Byte == 45 or Byte == 43 or Byte == 46 or Byte == 101 or Byte == 69 then
+                    Position = Position + 1
+                else
+                    break
+                end
+            end
+
+            local Number = tonumber(Text:sub(Start, Position - 1))
+            if Number == nil then
+                return nil, false
+            end
+            return Number, true
+        end
+
+        if Char == 116 then -- true
+            if Text:sub(Position, Position + 3) == "true" then
+                Position = Position + 4
+                return true, true
+            end
+        elseif Char == 102 then -- false
+            if Text:sub(Position, Position + 4) == "false" then
+                Position = Position + 5
+                return false, true
+            end
+        elseif Char == 110 then -- null
+            if Text:sub(Position, Position + 3) == "null" then
+                Position = Position + 4
+                return nil, true
+            end
+        end
+
+        return nil, false
+    end
+
+    local Result, Ok = ParseValue()
+    if not Ok then
+        return nil
+    end
+    SkipWhitespace()
+    if Position <= Length then
+        return nil
+    end
+    return Result
+end
+
+local function SameValue(A, B)
+    if A == B then
+        return true
+    end
+
+    if type(A) == "table" and type(B) == "table" then
+        local Count = 0
+
+        for Key, Value in pairs(A) do
+            Count = Count + 1
+            if B[Key] ~= Value then
+                return false
+            end
+        end
+
+        for Key in pairs(B) do
+            Count = Count - 1
+            if Count < 0 then
+                return false
+            end
+        end
+
+        return Count == 0
+    end
+
+    return false
+end
 
 local function LoadFileManager()
     local Genv = getgenv and getgenv() or _G
@@ -306,13 +642,20 @@ local function NewConfigSystem(Library)
                 for SliderFlag, SliderData in pairs(ModuleData.Sliders) do
                     if Library.SliderMap and Library.SliderMap[SliderFlag] then
                         local SliderInstance = Library.SliderMap[SliderFlag]
+                        local CurrentValue, CurrentMinimum = SliderInstance:GetValue()
 
                         if type(SliderData) == "table" then
-                            SliderInstance:SetValue(SliderData.Value)
-                            SliderInstance:SetMinimum(SliderData.MinValue)
+                            if CurrentValue ~= SliderData.Value then
+                                SliderInstance:SetValue(SliderData.Value)
+                            end
+                            if CurrentMinimum ~= SliderData.MinValue then
+                                SliderInstance:SetMinimum(SliderData.MinValue)
+                            end
                             Library.Flags[SliderFlag] = {Min = SliderData.MinValue, Max = SliderData.Value}
                         else
-                            SliderInstance:SetValue(SliderData)
+                            if CurrentValue ~= SliderData then
+                                SliderInstance:SetValue(SliderData)
+                            end
                             Library.Flags[SliderFlag] = SliderData
                         end
                     else
@@ -327,12 +670,13 @@ local function NewConfigSystem(Library)
 
                     if Library.CarouselMap and Library.CarouselMap[CarouselFlag] then
                         local CarouselInstance = Library.CarouselMap[CarouselFlag]
-                        local Values = CarouselInstance.Values
 
-                        for Index, OptionName in ipairs(Values) do
-                            if OptionName == Value then
-                                CarouselInstance:SetValue(Index)
-                                break
+                        if CarouselInstance:GetValue() ~= Value then
+                            for Index, OptionName in ipairs(CarouselInstance.Values) do
+                                if OptionName == Value then
+                                    CarouselInstance:SetValue(Index)
+                                    break
+                                end
                             end
                         end
                     end
@@ -345,9 +689,13 @@ local function NewConfigSystem(Library)
                         local DropdownInstance = Library.DropdownMap[DropdownFlag]
 
                         if DropdownInstance.IsMulti then
-                            DropdownInstance:SetSelected(type(Value) == "table" and Value or {})
+                            if not SameValue(DropdownInstance:GetSelected() or {}, Value) then
+                                DropdownInstance:SetSelected(type(Value) == "table" and Value or {})
+                            end
                         else
-                            DropdownInstance:SetValue(Value)
+                            if DropdownInstance:GetValue() ~= Value then
+                                DropdownInstance:SetValue(Value)
+                            end
                         end
                     else
                         Library.Flags[DropdownFlag] = Value
@@ -363,7 +711,10 @@ local function NewConfigSystem(Library)
                             Data.G or 255,
                             Data.B or 255
                         )
-                        Library.ColorPickerMap[ColorFlag]:SetValue(Color)
+                        local ColorInstance = Library.ColorPickerMap[ColorFlag]
+                        if ColorInstance:GetValue() ~= Color then
+                            ColorInstance:SetValue(Color)
+                        end
                         Library.Flags[ColorFlag] = Color
                     end
                 end
@@ -372,7 +723,10 @@ local function NewConfigSystem(Library)
             if ModuleData.TextBoxes then
                 for TextBoxFlag, Value in pairs(ModuleData.TextBoxes) do
                     if Library.TextBoxMap and Library.TextBoxMap[TextBoxFlag] then
-                        Library.TextBoxMap[TextBoxFlag]:SetText(Value)
+                        local TextBoxInstance = Library.TextBoxMap[TextBoxFlag]
+                        if TextBoxInstance:GetText() ~= Value then
+                            TextBoxInstance:SetText(Value)
+                        end
                         Library.Flags[TextBoxFlag] = Value
                     end
                 end
@@ -381,13 +735,15 @@ local function NewConfigSystem(Library)
             if ModuleData.Keybinds then
                 for KeybindFlag, KeyName in pairs(ModuleData.Keybinds) do
                     if Library.KeybindMap and Library.KeybindMap[KeybindFlag] then
+                        local KeybindInstance = Library.KeybindMap[KeybindFlag]
+
                         if KeyName and KeyName ~= "" then
                             local KeyItem = Enum.KeyCode[KeyName] or Enum.UserInputType[KeyName]
-                            if KeyItem then
-                                Library.KeybindMap[KeybindFlag]:SetKey(KeyItem)
+                            if KeyItem and KeybindInstance:GetKey() ~= KeyItem then
+                                KeybindInstance:SetKey(KeyItem)
                             end
-                        else
-                            Library.KeybindMap[KeybindFlag]:SetKey(nil)
+                        elseif KeybindInstance:GetKey() ~= nil then
+                            KeybindInstance:SetKey(nil)
                         end
                     end
                 end
@@ -408,36 +764,6 @@ local function NewConfigSystem(Library)
         end
     end
 
-    function ConfigSystem:Prettify(Table)
-        local function Encode(Value, Indent)
-            Indent = Indent or 0
-            local Spacing = string.rep("    ", Indent)
-            local NextSpacing = string.rep("    ", Indent + 1)
-
-            if type(Value) == "table" then
-                local IsArray = (#Value > 0)
-                local Result = "{\n"
-
-                for Key, Val in pairs(Value) do
-                    local FormattedKey = IsArray and "" or ('"' .. tostring(Key) .. '": ')
-                    Result = Result .. NextSpacing .. FormattedKey .. Encode(Val, Indent + 1) .. ",\n"
-                end
-
-                Result = Result:sub(1, -3) .. "\n" .. Spacing .. "}"
-                return Result
-            elseif type(Value) == "string" then
-                local Escaped = Value:gsub('\\', '\\\\'):gsub('"', '\\"'):gsub('\n', '\\n'):gsub('\r', '\\r'):gsub('\t', '\\t')
-                return '"' .. Escaped .. '"'
-            elseif type(Value) == "boolean" or type(Value) == "number" then
-                return tostring(Value)
-            else
-                return 'null'
-            end
-        end
-
-        return Encode(Table, 0)
-    end
-
     function ConfigSystem:Save(Name, Description)
         local Path = self:GetPath(Name)
         local Data = self:Build()
@@ -448,12 +774,7 @@ local function NewConfigSystem(Library)
             Config = Data
         }
 
-        local Ok, Json = pcall(function()
-            return HttpService:JSONEncode(Wrapped)
-        end)
-        if not Ok or Json == nil then
-            Json = self:Prettify(Wrapped)
-        end
+        local Json = JsonEncode(Wrapped)
 
         -- Skip the disk write entirely when the payload is byte-identical
         -- to the last one we wrote for this profile.
@@ -498,11 +819,8 @@ local function NewConfigSystem(Library)
 
         local Raw = self:SanitizeRaw(FileManager:ReadFile(Path))
 
-        local Success, Decoded = pcall(function()
-            return HttpService:JSONDecode(Raw)
-        end)
-
-        if not (Success and Decoded) then
+        local Decoded = JsonDecode(Raw)
+        if type(Decoded) ~= "table" then
             return
         end
 
@@ -534,11 +852,8 @@ local function NewConfigSystem(Library)
 
         local Raw = self:SanitizeRaw(FileManager:ReadFile(Path))
 
-        local Success, Decoded = pcall(function()
-            return HttpService:JSONDecode(Raw)
-        end)
-
-        if Success and type(Decoded) == "table" then
+        local Decoded = JsonDecode(Raw)
+        if type(Decoded) == "table" then
             return {
                 Description = Decoded.Config and (Decoded.Description or "") or "",
                 Version = tonumber(Decoded.Version) or 1
@@ -603,7 +918,7 @@ local function NewConfigSystem(Library)
             Config = self:Build()
         }
 
-        return Base64Encode(HttpService:JSONEncode(Packed))
+        return Base64Encode(JsonEncode(Packed, true))
     end
 
     -- Copies the shareable code to the clipboard; returns the code itself
@@ -624,10 +939,8 @@ local function NewConfigSystem(Library)
             return false
         end
 
-        local Success, Decoded = pcall(function()
-            return HttpService:JSONDecode(Json)
-        end)
-        if not (Success and type(Decoded) == "table") then
+        local Decoded = JsonDecode(Json)
+        if type(Decoded) ~= "table" then
             return false
         end
 
