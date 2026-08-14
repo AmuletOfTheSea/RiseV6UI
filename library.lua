@@ -83,7 +83,7 @@ if getgenv().LibraryInstance then
 end
 
 local Library = {
-    Version = "1.0.0",
+    Version = "1.5.0",
     ThemeObjects = {},
     AccentObjects = {},
     LoadConfig = nil,
@@ -2993,7 +2993,7 @@ function Library:AddConfig(Tab, ConfigSystem)
         ConfigSystem:SetAutoLoad(Name)
         Library.LoadConfig = Name
         Input.Text = Name
-        Refresh()
+        task.defer(Refresh)
     end)
 
     Refresh()
