@@ -2728,7 +2728,7 @@ function Library:AddConfig(Tab, ConfigSystem)
             if Value and Value ~= "" then
                 ConfigSystem:SwitchProfile(Value)
                 Input.Text = Value
-                Refresh()
+                task.defer(Refresh)
             end
         end,
     })
@@ -2775,7 +2775,7 @@ function Library:AddConfig(Tab, ConfigSystem)
             local Ok = ConfigSystem:Import(Code)
             if Ok then
                 Library:Success("Config imported")
-                Refresh()
+                task.defer(Refresh)
             else
                 Library:Error("Invalid config code")
             end
