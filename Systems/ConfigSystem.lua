@@ -124,6 +124,12 @@ local function NewConfigSystem(Library)
     ConfigSystem.AutoSaveDebounce = nil
     ConfigSystem.CurrentProfile = nil
 
+    -- Last serialized payload per profile: identical saves skip disk I/O.
+    -- Executor writefile is slow and blocks the game thread, so avoiding
+    -- redundant writes is what keeps save clicks instant.
+    ConfigSystem.LastWrites = {}
+    ConfigSystem.LastAutoLoad = nil
+
     function ConfigSystem:Init()
         FileManager:CreateFolder(self.BasePath)
     end
@@ -436,7 +442,19 @@ local function NewConfigSystem(Library)
             Config = Data
         }
 
-        FileManager:WriteFile(Path, HttpService:JSONEncode(Wrapped))
+        local Ok, Json = pcall(function()
+            return HttpService:JSONEncode(Wrapped)
+        end)
+        if not Ok or Json == nil then
+            Json = self:Prettify(Wrapped)
+        end
+
+        -- Skip the disk write entirely when the payload is byte-identical
+        -- to the last one we wrote for this profile.
+        if self.LastWrites[Name] ~= Json then
+            FileManager:WriteFile(Path, Json)
+            self.LastWrites[Name] = Json
+        end
 
         self.CurrentProfile = Name
         self.AutoSaveName = Name
@@ -649,8 +667,16 @@ local function NewConfigSystem(Library)
     end
 
     function ConfigSystem:SetAutoLoad(Name)
+        Name = Name or ""
+
+        if self.LastAutoLoad == Name then
+            return
+        end
+
+        self.LastAutoLoad = Name
+
         local Path = self:GetAutoLoadPath()
-        FileManager:WriteFile(Path, Name or "")
+        FileManager:WriteFile(Path, Name)
     end
 
     function ConfigSystem:GetAutoLoad()
@@ -667,6 +693,7 @@ local function NewConfigSystem(Library)
     ConfigSystem:Init()
 
     local Auto = ConfigSystem:GetAutoLoad()
+    ConfigSystem.LastAutoLoad = Auto or ""
     if Auto and Auto ~= "" then
         Library.LoadConfig = Auto
         Library.CurrentConfig = Auto
