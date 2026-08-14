@@ -536,7 +536,8 @@ local function NewConfigSystem(Library)
         if self.AutoSaveEnabled == false then return end
 
         if self.AutoSaveDebounce then
-            self.AutoSaveDebounce:Cancel()
+            task.cancel(self.AutoSaveDebounce)
+            self.AutoSaveDebounce = nil
         end
 
         self.AutoSaveDebounce = task.delay(1.5, function()
