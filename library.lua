@@ -490,6 +490,7 @@ function Library:Prompt(Config)
         IconImage.Size = UDim2.fromOffset(44, 44)
         IconImage.BackgroundTransparency = 1
         IconImage.ScaleType = Enum.ScaleType.Fit
+        IconImage.ZIndex = 3
         local Ok = pcall(function() IconImage.Image = Assets:GetImage(Config.Icon) end)
         if Ok then
             IconImage.Parent = Card
@@ -500,6 +501,7 @@ function Library:Prompt(Config)
     TitleLabel.Size = UDim2.new(0, 0, 0, 22)
     TitleLabel.AutomaticSize = Enum.AutomaticSize.X
     TitleLabel.BackgroundTransparency = 1
+    TitleLabel.ZIndex = 3
     TitleLabel.Text = Title
     TitleLabel.TextSize = 18
     TitleLabel.Parent = Card
@@ -510,6 +512,7 @@ function Library:Prompt(Config)
     BodyLabel.Size = UDim2.new(1, 0, 0, 0)
     BodyLabel.AutomaticSize = Enum.AutomaticSize.Y
     BodyLabel.BackgroundTransparency = 1
+    BodyLabel.ZIndex = 3
     BodyLabel.Text = Text
     BodyLabel.TextSize = 13
     BodyLabel.TextWrapped = true
@@ -522,6 +525,7 @@ function Library:Prompt(Config)
     local Row = Instance.new("Frame")
     Row.Size = UDim2.new(1, 0, 0, 36)
     Row.BackgroundTransparency = 1
+    Row.ZIndex = 3
     Row.Parent = Card
 
     local RowLayout = Instance.new("UIListLayout")
@@ -3248,11 +3252,14 @@ function Library:AddKeybind(Module, Config)
     local Text     = Config.Text     or "Keybind"
     local Flag     = Config.Flag     or Text:gsub("%s+", "")
     local Default  = Config.Default  or nil   -- Enum.KeyCode.X  or  nil
+    local Mode     = Config.Mode     or "Toggle"   -- "Toggle" | "Hold"
     local OnChange = Config.OnChange or function() end
     local OnPress  = Config.OnPress  or function() end
+    local OnRelease = Config.OnRelease or function() end
 
     local CurrentKey = Default
     local IsListening = false
+    local Held = false
 
     Library.Flags[Flag] = CurrentKey
 
@@ -3383,7 +3390,22 @@ function Library:AddKeybind(Module, Config)
         if GameProcessed then return end
         if IsListening then return end
         if CurrentKey and Input.KeyCode == CurrentKey then
-            task.spawn(OnPress)
+            Held = true
+            task.spawn(OnPress, true)
+
+            if Mode ~= "Hold" then
+                Held = false
+            end
+        end
+    end)
+
+    UserInputService.InputEnded:Connect(function(Input, GameProcessed)
+        if GameProcessed then return end
+        if Mode ~= "Hold" or not Held then return end
+        if CurrentKey and Input.KeyCode == CurrentKey then
+            Held = false
+            task.spawn(OnPress, false)
+            task.spawn(OnRelease)
         end
     end)
 
