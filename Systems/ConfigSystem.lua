@@ -20,6 +20,11 @@ local FileManager = LoadFileManager()
 -- Minimal Base64 codec (works on any executor, no dependencies)
 local Base64Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
 
+local Base64Map = {}
+for Index = 1, #Base64Chars do
+    Base64Map[Base64Chars:byte(Index, Index)] = Index - 1
+end
+
 local function Base64Encode(Value)
     local Result = {}
 
@@ -50,31 +55,29 @@ end
 local function Base64Decode(Value)
     Value = tostring(Value):gsub("%s", "")
 
-    local Data = {}
+    local Decoded = {}
+    local Buffer = 0
+    local Bits = 0
+
     for Index = 1, #Value do
-        local Pos = Base64Chars:find(Value:sub(Index, Index), 1, true)
-        Data[Index] = (Pos and Pos - 1) or 0
-    end
-
-    local Result = {}
-    for Index = 1, #Value, 4 do
-        local N = (Data[Index] or 0) * 262144
-            + (Data[Index + 1] or 0) * 4096
-            + (Data[Index + 2] or 0) * 64
-            + (Data[Index + 3] or 0)
-
-        if Index + 2 <= #Value then
-            Result[#Result + 1] = string.char(N // 65536)
+        local Byte = Value:byte(Index, Index)
+        if Byte == 61 then -- '='
+            break
         end
-        if Index + 3 <= #Value then
-            Result[#Result + 1] = string.char(N // 256 % 256)
-        end
-        if Index + 4 <= #Value then
-            Result[#Result + 1] = string.char(N % 256)
+
+        local Digit = Base64Map[Byte]
+        if Digit then
+            Buffer = Buffer * 64 + Digit
+            Bits = Bits + 6
+
+            if Bits >= 8 then
+                Bits = Bits - 8
+                Decoded[#Decoded + 1] = string.char(math.floor(Buffer / (2 ^ Bits)) % 256)
+            end
         end
     end
 
-    return table.concat(Result)
+    return table.concat(Decoded)
 end
 
 local function CopyToClipboard(Text)
@@ -117,12 +120,15 @@ local function NewConfigSystem(Library)
         end,
     }
 
-    -- Auto-save: enabled by default; saves into the active profile 1.5s
-    -- after the last flag change (debounced).
+    -- Auto-save: enabled by default; saves into the active profile shortly
+    -- after the last flag change. Uses ONE persistent heartbeat loop with a
+    -- dirty flag instead of task.delay/cancel per flag write (thread churn
+    -- is what makes executors lag).
     ConfigSystem.AutoSaveEnabled = true
     ConfigSystem.AutoSaveName = nil
-    ConfigSystem.AutoSaveDebounce = nil
     ConfigSystem.CurrentProfile = nil
+    ConfigSystem.AutoSaveDirty = false
+    ConfigSystem.AutoSaveInterval = 2.5
 
     -- Last serialized payload per profile: identical saves skip disk I/O.
     -- Executor writefile is slow and blocks the game thread, so avoiding
@@ -458,6 +464,7 @@ local function NewConfigSystem(Library)
 
         self.CurrentProfile = Name
         self.AutoSaveName = Name
+        self.AutoSaveDirty = false
     end
 
     -- Strips legacy "-- description" comment lines from old-format files
@@ -541,7 +548,7 @@ local function NewConfigSystem(Library)
         return {}
     end
 
-    -- ── Auto-save (debounced) ─────────────────────────────────────────────
+    -- ── Auto-save (single heartbeat, dirty flag) ─────────────────────────
     function ConfigSystem:SetAutoSave(State)
         self.AutoSaveEnabled = State == true
 
@@ -550,17 +557,21 @@ local function NewConfigSystem(Library)
         end
     end
 
+    -- Called on every flag change. Just flips a flag: no threads, no I/O.
     function ConfigSystem:ScheduleSave()
-        if self.AutoSaveEnabled == false then return end
+        self.AutoSaveDirty = true
+    end
 
-        if self.AutoSaveDebounce then
-            task.cancel(self.AutoSaveDebounce)
-            self.AutoSaveDebounce = nil
-        end
+    function ConfigSystem:StartAutoSaveLoop()
+        task.spawn(function()
+            while true do
+                task.wait(self.AutoSaveInterval)
 
-        self.AutoSaveDebounce = task.delay(1.5, function()
-            self.AutoSaveDebounce = nil
-            self:Save(self.AutoSaveName or self.CurrentProfile or "Default")
+                if self.AutoSaveEnabled ~= false and self.AutoSaveDirty then
+                    self.AutoSaveDirty = false
+                    self:Save(self.AutoSaveName or self.CurrentProfile or "Default")
+                end
+            end
         end)
     end
 
@@ -691,6 +702,7 @@ local function NewConfigSystem(Library)
     end
 
     ConfigSystem:Init()
+    ConfigSystem:StartAutoSaveLoop()
 
     local Auto = ConfigSystem:GetAutoLoad()
     ConfigSystem.LastAutoLoad = Auto or ""
