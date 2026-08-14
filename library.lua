@@ -2705,6 +2705,7 @@ function Library:AddConfig(Tab, ConfigSystem)
     -- ── Profile tools: picker, auto-save, description, reset, import ──────
     local Tools = Instance.new("Frame")
     Tools.Size = UDim2.new(1, 0, 0, 0)
+    Tools.Position = UDim2.new(0, 0, 0, 40)
     Tools.AutomaticSize = Enum.AutomaticSize.Y
     Tools.BackgroundTransparency = 1
     Tools.Parent = Holder
@@ -2786,8 +2787,8 @@ function Library:AddConfig(Tab, ConfigSystem)
 
     local function UpdateHolderSize()
         local ToolsHeight = Tools.AbsoluteSize.Y
-        List.Position = UDim2.new(0, 6, 0, 40 + ToolsHeight)
-        Holder.Size = UDim2.new(1, -8, 0, 40 + ToolsHeight + Layout.AbsoluteContentSize.Y + 12)
+        List.Position = UDim2.new(0, 6, 0, 46 + ToolsHeight)
+        Holder.Size = UDim2.new(1, -8, 0, 46 + ToolsHeight + Layout.AbsoluteContentSize.Y + 6)
     end
 
     Layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(UpdateHolderSize)
@@ -4602,7 +4603,6 @@ function Library:AddDropdown(Module, Config)
         TargetPanelHeight = ContentHeight
         if IsOpen then
             Panel.Size = UDim2.new(1, -4, 0, TargetPanelHeight)
-            Wrapper.Size = UDim2.new(1, 0, 0, 30 + TargetPanelHeight + 4)
         end
     end
 
@@ -4616,7 +4616,6 @@ function Library:AddDropdown(Module, Config)
             TweenService:Create(Panel, TweenInfo.new(0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
                 Size = UDim2.new(1, -4, 0, TargetPanelHeight)
             }):Play()
-            Wrapper.Size = UDim2.new(1, 0, 0, 30 + TargetPanelHeight + 4)
         else
             TweenService:Create(ChevronLeft,  TweenInfo.new(0.18, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Rotation = 45}):Play()
             TweenService:Create(ChevronRight, TweenInfo.new(0.18, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Rotation = -45}):Play()
@@ -4629,7 +4628,6 @@ function Library:AddDropdown(Module, Config)
                     Panel.Visible = false
                 end
             end)
-            Wrapper.Size = UDim2.new(1, 0, 0, 28)
         end
     end
 
@@ -5334,7 +5332,6 @@ function Library:AddDropdownMultiSelect(Module, Config)
         TargetPanelHeight = ContentHeight
         if IsOpen then
             Panel.Size = UDim2.new(1, -4, 0, TargetPanelHeight)
-            Wrapper.Size = UDim2.new(1, 0, 0, 30 + TargetPanelHeight + 4)
         end
     end
 
@@ -5352,7 +5349,6 @@ function Library:AddDropdownMultiSelect(Module, Config)
             TweenService:Create(Panel, TweenInfo.new(0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
                 Size = UDim2.new(1, -4, 0, TargetPanelHeight)
             }):Play()
-            Wrapper.Size = UDim2.new(1, 0, 0, 30 + TargetPanelHeight + 4)
         else
             TweenService:Create(ChevronLeft,  TweenInfo.new(0.18, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Rotation = 45}):Play()
             TweenService:Create(ChevronRight, TweenInfo.new(0.18, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Rotation = -45}):Play()
@@ -5365,7 +5361,6 @@ function Library:AddDropdownMultiSelect(Module, Config)
                     Panel.Visible = false
                 end
             end)
-            Wrapper.Size = UDim2.new(1, 0, 0, 28)
         end
     end
 
