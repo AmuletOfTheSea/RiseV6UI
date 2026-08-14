@@ -64,7 +64,7 @@ local GuiConfigs = {
         ResetOnSpawn = false,
         IgnoreGuiInset = true,
         DisplayOrder = 50000,
-        ZIndexBehavior = Enum.ZIndexBehavior.Global
+        ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     },
 }
 local ScreenGuis = {}
