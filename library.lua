@@ -83,7 +83,7 @@ if getgenv().LibraryInstance then
 end
 
 local Library = {
-    Version = "1.5.0",
+    Version = "1.0.0",
     ThemeObjects = {},
     AccentObjects = {},
     LoadConfig = nil,
@@ -2718,6 +2718,8 @@ function Library:AddConfig(Tab, ConfigSystem)
     -- Controls live in a real module normally; a container is all they need.
     local FakeModule = { Container = Tools }
 
+    local LastProfileValue = ConfigSystem:GetAutoLoad()
+
     local ProfilePicker = self:AddDropdown(FakeModule, {
         Text = "Profile",
         Flag = "Configs.Profile",
@@ -2725,7 +2727,12 @@ function Library:AddConfig(Tab, ConfigSystem)
         Default = ConfigSystem:GetAutoLoad(),
         MaxHeight = 150,
         OnChange = function(Value)
-            if Value and Value ~= "" then
+            -- OnChange also fires when Refresh() rebuilds the options via
+            -- SetOptions(). Only act on an ACTUAL value change; otherwise
+            -- Refresh -> OnChange -> SwitchProfile (Load + file writes) ->
+            -- task.defer(Refresh) loops forever and freezes the game.
+            if Value and Value ~= "" and Value ~= LastProfileValue then
+                LastProfileValue = Value
                 ConfigSystem:SwitchProfile(Value)
                 Input.Text = Value
                 task.defer(Refresh)
@@ -4588,10 +4595,20 @@ function Library:AddDropdown(Module, Config)
         ValueLabel.Text = CurrentValue ~= nil and tostring(CurrentValue) or (#Options > 0 and "Select..." or "No options")
     end
 
+    local LastOnChangeValue = nil
+
     local function UpdateFlag()
         Library.Flags[Flag] = CurrentValue
-    Library.Defaults[Flag] = Default
-        task.spawn(OnChange, CurrentValue, CurrentIndex)
+        Library.Defaults[Flag] = Default
+        -- Only fire OnChange when the value actually changed. Rebuilding the
+        -- same options (e.g. ConfigSystem's profile list refresh) previously
+        -- fired OnChange unconditionally, which made AddConfig's ProfilePicker
+        -- loop Refresh -> SetOptions -> OnChange -> SwitchProfile -> Refresh
+        -- until the executor's re-entrancy cap crashed the game for seconds.
+        if LastOnChangeValue ~= CurrentValue then
+            LastOnChangeValue = CurrentValue
+            task.spawn(OnChange, CurrentValue, CurrentIndex)
+        end
     end
 
     local function UpdatePanelSize()
@@ -4835,13 +4852,29 @@ function Library:AddDropdown(Module, Config)
     end
 
     function Dropdown:SetOptions(NewOptions, KeepValue)
+        local Changed = not KeepValue
+        if not Changed then
+            local Incoming = NewOptions or {}
+            if #Options ~= #Incoming then
+                Changed = true
+            else
+                for i = 1, #Incoming do
+                    if Options[i] ~= Incoming[i] then
+                        Changed = true
+                        break
+                    end
+                end
+            end
+        end
         BuildRows(NewOptions or {})
         if not KeepValue and #Options > 0 then
             CurrentIndex = 1
             CurrentValue = Options[1]
             UpdateValueLabel()
         end
-        UpdateFlag()
+        if Changed then
+            UpdateFlag()
+        end
     end
 
     function Dropdown:SetOpen(State)
