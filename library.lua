@@ -2123,7 +2123,7 @@ function Library:AddParagraph(Tab, Config)
     Label.TextSize = 16
     Label.TextXAlignment = Enum.TextXAlignment.Left
     Label.TextYAlignment = Enum.TextYAlignment.Top
-    pcall(function() Label.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Regular, Enum.FontStyle.Normal) end)
+    pcall(function() Label.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Medium, Enum.FontStyle.Normal) end)
     Label.Parent = Holder
 
     self:TrackTheme(Label, "TextColor3", "Text")
@@ -2267,7 +2267,7 @@ function Library:AddRadar(Tab, Config)
     RangeLabel.Position = UDim2.new(0, -4, 1, -16)
     RangeLabel.BackgroundTransparency = 1
     RangeLabel.Text = DetectRange .. " studs"
-    RangeLabel.TextSize = 12
+    RangeLabel.TextSize = 13
     RangeLabel.TextTransparency = 0.3
     RangeLabel.TextXAlignment = Enum.TextXAlignment.Right
     pcall(function() RangeLabel.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal) end)
@@ -3436,7 +3436,7 @@ function Library:AddKeybind(Module, Config)
     local KeyLabel = Instance.new("TextLabel")
     KeyLabel.Size = UDim2.new(1, 0, 1, 0)
     KeyLabel.BackgroundTransparency = 1
-    KeyLabel.TextSize = 13
+    KeyLabel.TextSize = 14
     KeyLabel.TextXAlignment = Enum.TextXAlignment.Center
     pcall(function() KeyLabel.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal) end)
     KeyLabel.Parent = Pill
@@ -4373,8 +4373,8 @@ function Library:AddTextBox(Module, Config)
     Input.PlaceholderText = Placeholder
     Input.PlaceholderColor3 = Color3.fromRGB(128, 128, 128)
     Input.Text = Library.Flags[Flag]
-    Input.TextSize = 12.5
-    pcall(function() Input.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Regular, Enum.FontStyle.Normal) end)
+    Input.TextSize = 14
+    pcall(function() Input.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Medium, Enum.FontStyle.Normal) end)
     Input.TextXAlignment = Enum.TextXAlignment.Left
     Input.ClearTextOnFocus = false
     Input.Parent = Row
@@ -4513,7 +4513,7 @@ function Library:AddDropdown(Module, Config)
     ValueLabel.AnchorPoint = Vector2.new(1, 0.5)
     ValueLabel.Position = UDim2.new(1, -30, 0.5, 0)
     ValueLabel.BackgroundTransparency = 1
-    ValueLabel.TextSize = 13
+    ValueLabel.TextSize = 14
     ValueLabel.TextTransparency = 0.4
     ValueLabel.TextXAlignment = Enum.TextXAlignment.Right
     pcall(function() ValueLabel.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Regular, Enum.FontStyle.Normal) end)
@@ -4633,6 +4633,9 @@ function Library:AddDropdown(Module, Config)
             Panel.Visible = true
             TweenService:Create(ChevronLeft,  TweenInfo.new(0.18, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Rotation = -45}):Play()
             TweenService:Create(ChevronRight, TweenInfo.new(0.18, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Rotation = 45}):Play()
+            -- Grow the wrapper so the module card extends while open;
+            -- otherwise the container (ClipsDescendants) cuts the panel off
+            Wrapper.Size = UDim2.new(1, 0, 0, 30 + TargetPanelHeight + 4)
             TweenService:Create(Panel, TweenInfo.new(0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
                 Size = UDim2.new(1, -4, 0, TargetPanelHeight)
             }):Play()
@@ -4646,6 +4649,7 @@ function Library:AddDropdown(Module, Config)
             t.Completed:Connect(function()
                 if not IsOpen then
                     Panel.Visible = false
+                    Wrapper.Size = UDim2.new(1, 0, 0, 28)
                 end
             end)
         end
@@ -5022,7 +5026,7 @@ function Library:AddProgress(Module, Config)
     ValueLabel.AnchorPoint = Vector2.new(1, 0.5)
     ValueLabel.Position = UDim2.new(1, -4, 0.5, 0)
     ValueLabel.BackgroundTransparency = 1
-    ValueLabel.TextSize = 13
+    ValueLabel.TextSize = 14
     ValueLabel.TextTransparency = 0.35
     ValueLabel.TextXAlignment = Enum.TextXAlignment.Right
     pcall(function() ValueLabel.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal) end)
@@ -5170,7 +5174,7 @@ function Library:AddDropdownMultiSelect(Module, Config)
     CountLabel.AnchorPoint = Vector2.new(1, 0.5)
     CountLabel.Position = UDim2.new(1, -30, 0.5, 0)
     CountLabel.BackgroundTransparency = 1
-    CountLabel.TextSize = 13
+    CountLabel.TextSize = 14
     CountLabel.TextTransparency = 0.4
     CountLabel.TextXAlignment = Enum.TextXAlignment.Right
     pcall(function() CountLabel.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Regular, Enum.FontStyle.Normal) end)
@@ -5383,6 +5387,9 @@ function Library:AddDropdownMultiSelect(Module, Config)
             Panel.Visible = true
             TweenService:Create(ChevronLeft,  TweenInfo.new(0.18, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Rotation = -45}):Play()
             TweenService:Create(ChevronRight, TweenInfo.new(0.18, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Rotation = 45}):Play()
+            -- Grow the wrapper so the module card extends while open;
+            -- otherwise the container (ClipsDescendants) cuts the panel off
+            Wrapper.Size = UDim2.new(1, 0, 0, 30 + TargetPanelHeight + 4)
             TweenService:Create(Panel, TweenInfo.new(0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
                 Size = UDim2.new(1, -4, 0, TargetPanelHeight)
             }):Play()
@@ -5396,6 +5403,7 @@ function Library:AddDropdownMultiSelect(Module, Config)
             t.Completed:Connect(function()
                 if not IsOpen then
                     Panel.Visible = false
+                    Wrapper.Size = UDim2.new(1, 0, 0, 28)
                 end
             end)
         end
