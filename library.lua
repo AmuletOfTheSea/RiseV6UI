@@ -4459,7 +4459,10 @@ function Library:AddDropdown(Module, Config)
     local Flag = Config.Flag or Text:gsub("%s+", "")
     local Options = Config.Options or {}
     local Default = Config.Default
-    local MaxHeight = Config.MaxHeight
+    -- Without a cap the panel grows to full content height, so
+    -- MaxScrollOffset is 0 and the list can never scroll (long lists
+    -- like spawn selectors overflow the window instead).
+    local MaxHeight = Config.MaxHeight or 150
     local OnChange = Config.OnChange or function() end
 
     local CurrentIndex = 0
@@ -5105,7 +5108,8 @@ function Library:AddDropdownMultiSelect(Module, Config)
     local Options  = Config.Options  or {}
     local Default  = Config.Default  or {}
     local MaxSelect = Config.MaxSelect or math.huge
-    local MaxHeight = Config.MaxHeight
+    -- Same cap as AddDropdown: keeps long option lists scrollable.
+    local MaxHeight = Config.MaxHeight or 150
     local OnChange = Config.OnChange or function() end
 
     -- Selected is a set: selected[optionName] = true
