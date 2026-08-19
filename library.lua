@@ -32,6 +32,7 @@ local ValidGuis = {
     PerseusHUD = CoreGui,
     NotificationContainer = CoreGui,
     PerseusPromptUI = CoreGui,
+    PerseusTooltipUI = CoreGui,
 }
 local GuiConfigs = {
     PerseusUI = {},
@@ -65,6 +66,13 @@ local GuiConfigs = {
         IgnoreGuiInset = true,
         DisplayOrder = 50000,
         ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    },
+
+    PerseusTooltipUI = {
+        ResetOnSpawn = false,
+        IgnoreGuiInset = true,
+        DisplayOrder = 49999,
+        ZIndexBehavior = Enum.ZIndexBehavior.Global
     },
 }
 local ScreenGuis = {}
@@ -1274,6 +1282,220 @@ local function AttachShadow(TargetInstance, CornerRadius, LayerCount, MaxSpread,
     end
 
     return Shadow
+end
+
+-- Attach a compact, theme-aware hover tooltip to any GuiObject. Controls can
+-- expose this through a `ToolTip` config without rebuilding tooltip UI.
+function Library:AddToolTip(Host, Config)
+    if not Host or not Host:IsA("GuiObject") then return nil end
+
+    if type(Config) == "string" then
+        Config = { Text = Config }
+    else
+        Config = Config or {}
+    end
+
+    local Text = tostring(Config.Text or "")
+    if Text == "" then return nil end
+
+    EnsureGuis()
+
+    local Risky = Config.Risky == true
+    local Width = math.clamp(tonumber(Config.Width) or 270, 190, 360)
+    local Layer = ScreenGuis.PerseusTooltipUI
+
+    local Icon = Instance.new("TextButton")
+    Icon.Name = "ToolTipIcon"
+    Icon.AnchorPoint = Vector2.new(1, 0.5)
+    Icon.Position = UDim2.new(1, -8, 0.5, 0)
+    Icon.Size = UDim2.fromOffset(16, 16)
+    Icon.BackgroundTransparency = 0.78
+    Icon.BorderSizePixel = 0
+    Icon.Text = Risky and "!" or "i"
+    Icon.TextSize = 12
+    Icon.AutoButtonColor = false
+    Icon.ZIndex = math.max(Host.ZIndex + 2, 4)
+    Icon.Parent = Host
+    pcall(function() Icon.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Bold, Enum.FontStyle.Normal) end)
+
+    local IconCorner = Instance.new("UICorner")
+    IconCorner.CornerRadius = UDim.new(1, 0)
+    IconCorner.Parent = Icon
+
+    local IconStroke = Instance.new("UIStroke")
+    IconStroke.Thickness = 1
+    IconStroke.Transparency = 0.35
+    IconStroke.Parent = Icon
+
+    if Risky then
+        Icon.BackgroundColor3 = NotificationTypes.Warning.Color
+        Icon.TextColor3 = NotificationTypes.Warning.Color
+        IconStroke.Color = NotificationTypes.Warning.Color
+    else
+        self:TrackAccent(Icon, "BackgroundColor3", "Accent")
+        self:TrackTheme(Icon, "TextColor3", "Text")
+        self:TrackAccent(IconStroke, "Color", "Accent")
+    end
+
+    local Card = Instance.new("Frame")
+    Card.Name = "ToolTipCard"
+    Card.Size = UDim2.fromOffset(Width, 0)
+    Card.AutomaticSize = Enum.AutomaticSize.Y
+    Card.BackgroundTransparency = 0.04
+    Card.BorderSizePixel = 0
+    Card.Visible = false
+    Card.ZIndex = 1000
+    Card.Parent = Layer
+    self:TrackTheme(Card, "BackgroundColor3", "SideBar")
+
+    local CardCorner = Instance.new("UICorner")
+    CardCorner.CornerRadius = UDim.new(0, 8)
+    CardCorner.Parent = Card
+
+    local CardStroke = Instance.new("UIStroke")
+    CardStroke.Thickness = 1
+    CardStroke.Transparency = Risky and 0.1 or 0.42
+    CardStroke.Parent = Card
+    if Risky then
+        CardStroke.Color = NotificationTypes.Warning.Color
+    else
+        self:TrackAccent(CardStroke, "Color", "Accent")
+    end
+
+    local AccentBar = Instance.new("Frame")
+    AccentBar.Name = "AccentBar"
+    AccentBar.Size = UDim2.new(0, 3, 1, -12)
+    AccentBar.Position = UDim2.fromOffset(6, 6)
+    AccentBar.BorderSizePixel = 0
+    AccentBar.ZIndex = Card.ZIndex + 1
+    AccentBar.Parent = Card
+    AccentBar.BackgroundColor3 = Risky and NotificationTypes.Warning.Color or self:GetAccent("Accent")
+    if not Risky then
+        self:TrackAccent(AccentBar, "BackgroundColor3", "Accent")
+    end
+
+    local BarCorner = Instance.new("UICorner")
+    BarCorner.CornerRadius = UDim.new(1, 0)
+    BarCorner.Parent = AccentBar
+
+    local Content = Instance.new("Frame")
+    Content.Name = "Content"
+    Content.Size = UDim2.new(1, 0, 0, 0)
+    Content.AutomaticSize = Enum.AutomaticSize.Y
+    Content.BackgroundTransparency = 1
+    Content.ZIndex = Card.ZIndex + 1
+    Content.Parent = Card
+
+    local ContentPadding = Instance.new("UIPadding")
+    ContentPadding.PaddingTop = UDim.new(0, 9)
+    ContentPadding.PaddingBottom = UDim.new(0, 9)
+    ContentPadding.PaddingLeft = UDim.new(0, 18)
+    ContentPadding.PaddingRight = UDim.new(0, 10)
+    ContentPadding.Parent = Content
+
+    local ContentLayout = Instance.new("UIListLayout")
+    ContentLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    ContentLayout.Parent = Content
+
+    local Body = Instance.new("TextLabel")
+    Body.Name = "Body"
+    Body.Size = UDim2.new(1, 0, 0, 0)
+    Body.AutomaticSize = Enum.AutomaticSize.Y
+    Body.BackgroundTransparency = 1
+    Body.Text = Text
+    Body.TextSize = 13
+    Body.TextWrapped = true
+    Body.TextXAlignment = Enum.TextXAlignment.Left
+    Body.TextYAlignment = Enum.TextYAlignment.Top
+    Body.ZIndex = Card.ZIndex + 1
+    Body.Parent = Content
+    pcall(function() Body.FontFace = Font.new(OutfitFont.Family, Enum.FontWeight.Medium, Enum.FontStyle.Normal) end)
+    self:TrackTheme(Body, "TextColor3", "Text")
+
+    local Scale = Instance.new("UIScale")
+    Scale.Scale = 0.96
+    Scale.Parent = Card
+
+    local FollowConnection
+    local Pinned = false
+
+    local function PositionCard()
+        if not Card.Visible then return end
+
+        local Viewport = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1920, 1080)
+        local Height = math.max(Card.AbsoluteSize.Y, 42)
+        local IconPosition = Icon.AbsolutePosition
+        local IconSize = Icon.AbsoluteSize
+        local X = math.clamp(IconPosition.X + IconSize.X + 8, 8, math.max(8, Viewport.X - Width - 8))
+        local Y = IconPosition.Y + IconSize.Y + 8
+
+        if Y + Height > Viewport.Y - 8 then
+            Y = math.max(8, IconPosition.Y - Height - 8)
+        end
+
+        Card.Position = UDim2.fromOffset(X, Y)
+    end
+
+    local function Show()
+        Card.Visible = true
+        Scale.Scale = 0.96
+        PositionCard()
+        TweenService:Create(Scale, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Scale = 1 }):Play()
+        TweenService:Create(Icon, TweenInfo.new(0.12, Enum.EasingStyle.Quad), { BackgroundTransparency = 0.45 }):Play()
+        if not FollowConnection then
+            FollowConnection = RunService.RenderStepped:Connect(PositionCard)
+        end
+    end
+
+    local function Hide()
+        TweenService:Create(Icon, TweenInfo.new(0.12, Enum.EasingStyle.Quad), { BackgroundTransparency = 0.78 }):Play()
+        Card.Visible = false
+        if FollowConnection then
+            FollowConnection:Disconnect()
+            FollowConnection = nil
+        end
+    end
+
+    Icon.MouseEnter:Connect(Show)
+    Icon.MouseLeave:Connect(function()
+        if not Pinned then Hide() end
+    end)
+    Icon.Activated:Connect(function()
+        Pinned = not Pinned
+        if Pinned then Show() else Hide() end
+    end)
+
+    Host:GetPropertyChangedSignal("Visible"):Connect(function()
+        if Host.Visible then return end
+        Pinned = false
+        Hide()
+    end)
+
+    Host.AncestryChanged:Connect(function(_, Parent)
+        if Parent then return end
+        if FollowConnection then FollowConnection:Disconnect() end
+        if Card then Card:Destroy() end
+    end)
+
+    local ToolTip = {
+        Icon = Icon,
+        Card = Card,
+        Show = Show,
+        Hide = Hide,
+    }
+
+    function ToolTip:SetText(Value)
+        Body.Text = tostring(Value or "")
+        task.defer(PositionCard)
+    end
+
+    function ToolTip:Destroy()
+        Hide()
+        Icon:Destroy()
+        Card:Destroy()
+    end
+
+    return ToolTip
 end
 
 function AttachTextShadow(TextLabel, ShadowOffset, ShadowColor, ShadowTransparency, LayerCount, ZIndexOffset)
@@ -3043,6 +3265,9 @@ function Library:AddToggle(Module, Config)
     local OnDisabled = Config.OnDisabled
     local OnUpdate = Config.OnUpdate
     local UpdateInterval = Config.UpdateInterval or 0.1
+    local ToolTipConfig = Config.ToolTip or Config.Tooltip
+    local ToolTipText = type(ToolTipConfig) == "table" and ToolTipConfig.Text or ToolTipConfig
+    local Risky = Config.Risky == true or (type(ToolTipConfig) == "table" and ToolTipConfig.Risky == true)
 
     local Toggle = {
         Text = Text,
@@ -3107,6 +3332,15 @@ function Library:AddToggle(Module, Config)
 
     Toggle.Label = Label
     Toggle.Icon = Icon
+    Toggle.Wrapper = Wrapper
+
+    if ToolTipText then
+        Toggle.ToolTip = self:AddToolTip(Wrapper, {
+            Text = ToolTipText,
+            Risky = Risky,
+            Width = type(ToolTipConfig) == "table" and ToolTipConfig.Width or nil,
+        })
+    end
 
     local function UpdateVisual()
         local Tween = TweenService:Create(Icon, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
@@ -3163,6 +3397,14 @@ function Library:AddToggle(Module, Config)
     end
 
     local Confirm = Config.Confirm
+    if Risky and not Confirm then
+        Confirm = {
+            Title = "Risky Feature",
+            Text = tostring(ToolTipText or "This feature may have unwanted side effects. Enable it anyway?"),
+            ConfirmText = "Enable",
+            CancelText = "Cancel",
+        }
+    end
 
     Label.MouseButton1Click:Connect(function()
         local Target = not Toggle.Enabled
