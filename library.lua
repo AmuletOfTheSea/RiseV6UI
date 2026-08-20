@@ -103,7 +103,8 @@ local Library = {
     Toggles = {},
     PromptQueue = {},
     PromptOpen = false,
-    ConditionObjects = {}
+    ConditionObjects = {},
+    ToolTips = {}
 }
 
 
@@ -789,6 +790,10 @@ function Library:ToggleWindow(Window, Value)
 
     Window.Open = NewState
 
+    if not NewState then
+        self:HideToolTips()
+    end
+
     local Duration = 0.15
 
     local ShowTweenInformation = TweenInfo.new(
@@ -1286,6 +1291,12 @@ end
 
 -- Attach a compact, theme-aware hover tooltip to any GuiObject. Controls can
 -- expose this through a `ToolTip` config without rebuilding tooltip UI.
+function Library:HideToolTips()
+    for ToolTip in pairs(self.ToolTips) do
+        ToolTip:Dismiss()
+    end
+end
+
 function Library:AddToolTip(Host, Config)
     if not Host or not Host:IsA("GuiObject") then return nil end
 
@@ -1418,6 +1429,7 @@ function Library:AddToolTip(Host, Config)
 
     local FollowConnection
     local Pinned = false
+    local ToolTip
 
     local function PositionCard()
         if not Card.Visible then return end
@@ -1456,6 +1468,11 @@ function Library:AddToolTip(Host, Config)
         end
     end
 
+    local function Dismiss()
+        Pinned = false
+        Hide()
+    end
+
     Icon.MouseEnter:Connect(Show)
     Icon.MouseLeave:Connect(function()
         if not Pinned then Hide() end
@@ -1467,22 +1484,28 @@ function Library:AddToolTip(Host, Config)
 
     Host:GetPropertyChangedSignal("Visible"):Connect(function()
         if Host.Visible then return end
-        Pinned = false
-        Hide()
+        Dismiss()
     end)
 
     Host.AncestryChanged:Connect(function(_, Parent)
         if Parent then return end
         if FollowConnection then FollowConnection:Disconnect() end
+        if ToolTip then Library.ToolTips[ToolTip] = nil end
         if Card then Card:Destroy() end
     end)
 
-    local ToolTip = {
+    ToolTip = {
         Icon = Icon,
         Card = Card,
         Show = Show,
         Hide = Hide,
     }
+
+    function ToolTip:Dismiss()
+        Dismiss()
+    end
+
+    self.ToolTips[ToolTip] = true
 
     function ToolTip:SetText(Value)
         Body.Text = tostring(Value or "")
@@ -1490,7 +1513,8 @@ function Library:AddToolTip(Host, Config)
     end
 
     function ToolTip:Destroy()
-        Hide()
+        self:Dismiss()
+        Library.ToolTips[self] = nil
         Icon:Destroy()
         Card:Destroy()
     end
@@ -1938,6 +1962,8 @@ function Library:AddTab(Window, Config)
         if Window.ActiveTab == Tab or Switching then return end
         Switching = true
 
+        Library:HideToolTips()
+
         local PreviousTab = Window.ActiveTab
 
         RunService.RenderStepped:Wait()
@@ -2202,6 +2228,9 @@ function Library:AddModule(Tab, Config)
     function Module:SetExpanded(State)
         if self.Expanded == State then return end
         self.Expanded = State
+        if not State then
+            Library:HideToolTips()
+        end
         UpdateSize()
     end
 
