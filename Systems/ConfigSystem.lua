@@ -465,6 +465,8 @@ local function NewConfigSystem(Library)
     ConfigSystem.CurrentProfile = nil
     ConfigSystem.AutoSaveDirty = false
     ConfigSystem.AutoSaveInterval = 2.5
+    ConfigSystem.AutoSaveReady = false
+    ConfigSystem.DefaultAutoSaveName = "Autosave"
 
     -- Last serialized payload per profile: identical saves skip disk I/O.
     -- Executor writefile is slow and blocks the game thread, so avoiding
@@ -786,6 +788,10 @@ local function NewConfigSystem(Library)
         self.CurrentProfile = Name
         self.AutoSaveName = Name
         self.AutoSaveDirty = false
+        if Library then
+            Library.LoadConfig = Name
+            Library.CurrentConfig = Name
+        end
     end
 
     -- Strips legacy "-- description" comment lines from old-format files
@@ -838,8 +844,11 @@ local function NewConfigSystem(Library)
         self.AutoSaveName = Name
 
         if Library then
+            Library.LoadConfig = Name
             Library.CurrentConfig = Name
         end
+        self.AutoSaveDirty = false
+        return true
     end
 
     -- Reads the header of a saved config (description + schema version)
@@ -882,9 +891,14 @@ local function NewConfigSystem(Library)
             while true do
                 task.wait(self.AutoSaveInterval)
 
-                if self.AutoSaveEnabled ~= false and self.AutoSaveDirty then
+                if self.AutoSaveReady and self.AutoSaveEnabled ~= false and self.AutoSaveDirty then
                     self.AutoSaveDirty = false
-                    self:Save(self.AutoSaveName or self.CurrentProfile or "Default")
+                    local Ok = pcall(function()
+                        self:Save(self.AutoSaveName or self.CurrentProfile or self.DefaultAutoSaveName)
+                    end)
+                    if not Ok then
+                        self.AutoSaveDirty = true
+                    end
                 end
             end
         end)
@@ -969,7 +983,7 @@ local function NewConfigSystem(Library)
         local Results = {}
 
         for _, File in ipairs(Files) do
-            local Name = File:match("([^/]+)%.cfg$")
+            local Name = File:match("([^/\\]+)%.cfg$")
             if Name then
                 table.insert(Results, Name)
             end
@@ -983,6 +997,18 @@ local function NewConfigSystem(Library)
 
         if FileManager:IsFile(Path) then
             delfile(Path)
+        end
+
+        if self:GetAutoLoad() == Name or self.CurrentProfile == Name then
+            local Fallback = self.DefaultAutoSaveName
+            self:SetAutoLoad(Fallback)
+            self.CurrentProfile = Fallback
+            self.AutoSaveName = Fallback
+            self.AutoSaveDirty = true
+            if Library then
+                Library.LoadConfig = Fallback
+                Library.CurrentConfig = Fallback
+            end
         end
     end
 
@@ -1015,20 +1041,21 @@ local function NewConfigSystem(Library)
     end
 
     ConfigSystem:Init()
+    local Auto = ConfigSystem:GetAutoLoad() or ConfigSystem.DefaultAutoSaveName
+    ConfigSystem:SetAutoLoad(Auto)
+    ConfigSystem.CurrentProfile = Auto
+    ConfigSystem.AutoSaveName = Auto
+    Library.LoadConfig = Auto
+    Library.CurrentConfig = Auto
     ConfigSystem:StartAutoSaveLoop()
 
-    local Auto = ConfigSystem:GetAutoLoad()
-    ConfigSystem.LastAutoLoad = Auto or ""
-    if Auto and Auto ~= "" then
-        Library.LoadConfig = Auto
-        Library.CurrentConfig = Auto
-
-        task.spawn(function()
+    task.spawn(function()
             local StableTime = 0
             local LastModuleCount = 0
             local LastFlagCount = 0
+            local ReadyDeadline = os.clock() + 10
 
-            while StableTime < 5 do
+            while StableTime < 5 and os.clock() < ReadyDeadline do
                 task.wait(0.1)
 
                 local ModuleCount = 0
@@ -1051,7 +1078,11 @@ local function NewConfigSystem(Library)
                 end
             end
 
-            ConfigSystem:Load(Auto)
+            if not ConfigSystem:Load(Auto) then
+                ConfigSystem:Save(Auto)
+            end
+            ConfigSystem.AutoSaveDirty = false
+            ConfigSystem.AutoSaveReady = true
 
             if Library.LoadStyle then
                 Library:LoadStyle()
@@ -1059,7 +1090,6 @@ local function NewConfigSystem(Library)
                 Library:SetAccent(Library.CurrentAccent)
             end
         end)
-    end
 
     return ConfigSystem
 end
