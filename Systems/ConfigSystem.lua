@@ -1,4 +1,4 @@
--- ── Fast pure-Luau JSON codec ──────────────────────────────────────────
+-- Fast pure-Luau JSON codec
 -- HttpService:JSONEncode/JSONDecode are slow inside executors (often a
 -- pure-Lua implementation that takes multiple seconds on large configs),
 -- and string-concat pretty printers are O(n^2). This codec is single-pass
@@ -389,7 +389,13 @@ local function Base64Encode(Value)
 end
 
 local function Base64Decode(Value)
-    Value = tostring(Value):gsub("%s", "")
+    Value = tostring(Value or "")
+	Value = Value:gsub("^%s*```[%w_%-]*%s*", ""):gsub("%s*```%s*$", "")
+	Value = Value:match("^%s*['\"](.-)['\"]%s*$") or Value
+	Value = Value:gsub("%s", ""):gsub("%-", "+"):gsub("_", "/")
+	if Value == "" or #Value % 4 == 1 or Value:find("[^A-Za-z0-9+/=]") or Value:find("=[^=]") then
+		error("invalid base64")
+	end
 
     local Decoded = {}
     local Buffer = 0
@@ -409,7 +415,10 @@ local function Base64Decode(Value)
             if Bits >= 8 then
                 Bits = Bits - 8
                 Decoded[#Decoded + 1] = string.char(math.floor(Buffer / (2 ^ Bits)) % 256)
+				Buffer = Buffer % (2 ^ Bits)
             end
+		else
+			error("invalid base64")
         end
     end
 
@@ -753,7 +762,8 @@ local function NewConfigSystem(Library)
         end
 
         for ToggleFlag, Toggle in pairs(Library.ToggleMap or {}) do
-            if not AppliedToggles[ToggleFlag] then
+            local IsInternalConfigFlag = tostring(ToggleFlag):match("^Configs%.") ~= nil
+            if not AppliedToggles[ToggleFlag] and not IsInternalConfigFlag then
                 Library.Flags[ToggleFlag] = false
                 Toggle:Set(false)
             end
@@ -872,7 +882,7 @@ local function NewConfigSystem(Library)
         return {}
     end
 
-    -- ── Auto-save (single heartbeat, dirty flag) ─────────────────────────
+    -- Auto-save (single heartbeat and dirty flag)
     function ConfigSystem:SetAutoSave(State)
         self.AutoSaveEnabled = State == true
 
@@ -904,7 +914,7 @@ local function NewConfigSystem(Library)
         end)
     end
 
-    -- ── Profiles ──────────────────────────────────────────────────────────
+    -- Profiles
     function ConfigSystem:SwitchProfile(Name)
         if Name == nil or Name == "" then return end
 
@@ -920,7 +930,7 @@ local function NewConfigSystem(Library)
         self:Load(Name)
     end
 
-    -- ── Sharing: export/import as a Base64 string ─────────────────────────
+    -- Sharing: export/import as a Base64 string
     function ConfigSystem:Export(Name)
         Name = Name or self.CurrentProfile or "Default"
 
@@ -953,29 +963,37 @@ local function NewConfigSystem(Library)
             return false
         end
 
-        local Decoded = JsonDecode(Json)
-        if type(Decoded) ~= "table" then
+        local DecodeOk, Decoded = pcall(JsonDecode, Json)
+        if not DecodeOk or type(Decoded) ~= "table" then
             return false
         end
 
         local Version = tonumber(Decoded.Version) or 1
         local Data = Decoded.Config or Decoded
+		if type(Data) ~= "table" then
+			return false
+		end
 
         if Version < self.SchemaVersion then
             Data = self:Migrate(Data, Version)
         end
 
-        self:Apply(Data)
+		local ImportOk = pcall(function()
+			self:Apply(Data)
 
-        local Name = tostring(Decoded.Name or "Imported")
-        self:Save(Name, Decoded.Description or "")
-        self:SetAutoLoad(Name)
+			local Name = tostring(Decoded.Name or "Imported")
+			Name = Name:gsub("[<>:%\"/\\|%?%*]", "_"):sub(1, 64)
+			if Name == "" then Name = "Imported" end
+			self:Save(Name, Decoded.Description or "")
+			self:SetAutoLoad(Name)
 
-        if Library then
-            Library.CurrentConfig = Name
-        end
+			if Library then
+				Library.LoadConfig = Name
+				Library.CurrentConfig = Name
+			end
+		end)
 
-        return true
+		return ImportOk
     end
 
     function ConfigSystem:List()
