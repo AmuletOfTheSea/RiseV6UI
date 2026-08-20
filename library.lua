@@ -903,7 +903,9 @@ function Library:TrackTheme(Object, Property, Key)
     if typeof(Object) == "table" and Object.SetColor then
         Object:SetColor(Color)
     else
-        Object[Property] = Color
+		pcall(function()
+			Object[Property] = Color
+		end)
     end
 end
 
@@ -970,7 +972,9 @@ function Library:TrackAccent(Object, Property, Key)
     if typeof(Object) == "table" and Object.SetColor then
         Object:SetColor(Color)
     else
-        Object[Property] = Color
+		pcall(function()
+			Object[Property] = Color
+		end)
     end
 end
 
