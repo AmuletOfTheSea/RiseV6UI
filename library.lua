@@ -107,19 +107,29 @@ local Library = {
     ToolTips = {}
 }
 
+function Library:SetFlagValue(Key, Value)
+    local WasPresent = rawget(self.Flags, Key) ~= nil
+    local Previous = self.Flags[Key]
+    self.Flags[Key] = Value
+    if WasPresent and Previous ~= Value then
+        local Callback = self.OnFlagChanged
+        if Callback then pcall(Callback, Key) end
+    end
+end
+
 
 local NotificationTypes = {
     Info = {
         Color = Color3.fromRGB(59, 130, 246),
-        Icon = "ℹ"
+        Icon = "i"
     },
     Success = {
         Color = Color3.fromRGB(34, 197, 94),
-        Icon = "✓"
+        Icon = "+"
     },
     Warning = {
         Color = Color3.fromRGB(249, 115, 22),
-        Icon = "⚠"
+        Icon = "!"
     },
     Error = {
         Color = Color3.fromRGB(239, 68, 68),
@@ -2180,7 +2190,7 @@ function Library:AddModule(Tab, Config)
         if self.Enabled == State then return end
         self.Enabled = State
 
-        Library.Flags[self.Flag] = State
+        Library:SetFlagValue(self.Flag, State)
 
         UpdateVisual()
 
@@ -2957,7 +2967,7 @@ function Library:AddConfig(Tab, ConfigSystem)
     Layout.Padding = UDim.new(0, 6)
     Layout.Parent = List
 
-    -- ── Profile tools: picker, auto-save, description, reset, import ──────
+    -- Profile tools: picker, auto-save, description, reset and import
     local Tools = Instance.new("Frame")
     Tools.Size = UDim2.new(1, 0, 0, 0)
     Tools.Position = UDim2.new(0, 0, 0, 40)
@@ -2998,7 +3008,7 @@ function Library:AddConfig(Tab, ConfigSystem)
     local AutoSaveToggle = self:AddToggle(FakeModule, {
         Text = "Auto-Save",
         Flag = "Configs.AutoSave",
-        Default = ConfigSystem.AutoSaveEnabled,
+        Default = ConfigSystem.AutoSaveEnabled ~= false,
         OnEnabled = function()
             ConfigSystem:SetAutoSave(true)
         end,
@@ -3380,7 +3390,7 @@ function Library:AddToggle(Module, Config)
         if self.Enabled == State then return end
         self.Enabled = State
 
-        Library.Flags[self.Flag] = State
+        Library:SetFlagValue(self.Flag, State)
 
         UpdateVisual()
 
@@ -3646,9 +3656,9 @@ function Library:AddKeybind(Module, Config)
     local IsListening = false
     local Held = false
 
-    Library.Flags[Flag] = CurrentKey
+    Library:SetFlagValue(Flag, CurrentKey)
 
-    -- ── Outer wrapper (same height as a button row) ──────────────────────
+    -- Outer wrapper (same height as a button row)
     local Wrapper = Instance.new("Frame")
     Wrapper.Size = UDim2.new(1, 0, 0, 26)
     Wrapper.BackgroundTransparency = 1
@@ -3660,7 +3670,7 @@ function Library:AddKeybind(Module, Config)
     WrapperPad.PaddingLeft = UDim.new(0, 10)
     WrapperPad.Parent = Wrapper
 
-    -- ── Name label ───────────────────────────────────────────────────────
+    -- Name label
     local NameLabel = Instance.new("TextLabel")
     NameLabel.Size = UDim2.new(1, -90, 1, 0)
     NameLabel.BackgroundTransparency = 1
@@ -3671,7 +3681,7 @@ function Library:AddKeybind(Module, Config)
     NameLabel.Parent = Wrapper
     self:TrackTheme(NameLabel, "TextColor3", "Text")
 
-    -- ── Pill / badge showing the bound key ───────────────────────────────
+    -- Pill / badge showing the bound key
     local Pill = Instance.new("Frame")
     Pill.Size = UDim2.new(0, 76, 0, 20)
     Pill.AnchorPoint = Vector2.new(1, 0.5)
@@ -3700,7 +3710,7 @@ function Library:AddKeybind(Module, Config)
     KeyLabel.Parent = Pill
     self:TrackTheme(KeyLabel, "TextColor3", "Text")
 
-    -- ── Click button over the pill ────────────────────────────────────────
+    -- Click button over the pill
     local PillBtn = Instance.new("TextButton")
     PillBtn.Size = UDim2.new(1, 0, 1, 0)
     PillBtn.BackgroundTransparency = 1
@@ -3709,7 +3719,7 @@ function Library:AddKeybind(Module, Config)
     PillBtn.ZIndex = 3
     PillBtn.Parent = Pill
 
-    -- ── Helper: pretty key name ───────────────────────────────────────────
+    -- Helper: pretty key name
     local function KeyName(KeyCode)
         if not KeyCode then return "None" end
         local n = tostring(KeyCode):gsub("Enum%.KeyCode%.", "")
@@ -3727,7 +3737,7 @@ function Library:AddKeybind(Module, Config)
         end
     end
 
-    -- ── Enter / exit listening mode ───────────────────────────────────────
+    -- Enter / exit listening mode
     local InputConn = nil
 
     local function StartListening()
@@ -3752,8 +3762,8 @@ function Library:AddKeybind(Module, Config)
                 return
             end
 
-    Library.Flags[Flag] = CurrentKey
-    Library.Defaults[Flag] = Default
+            Library:SetFlagValue(Flag, CurrentKey)
+            Library.Defaults[Flag] = Default
             UpdateLabel()
             task.spawn(OnChange, CurrentKey)
         end)
@@ -3771,7 +3781,7 @@ function Library:AddKeybind(Module, Config)
         TweenService:Create(Pill, TweenInfo.new(0.18, Enum.EasingStyle.Quad), {BackgroundTransparency = 0.6}):Play()
     end)
 
-    -- ── Global key listener for triggering OnPress ────────────────────────
+    -- Global key listener for triggering OnPress
     UserInputService.InputBegan:Connect(function(Input, GameProcessed)
         if GameProcessed then return end
         if IsListening then return end
@@ -3795,7 +3805,7 @@ function Library:AddKeybind(Module, Config)
         end
     end)
 
-    -- ── Public API ────────────────────────────────────────────────────────
+    -- Public API
     local Keybind = {}
     Keybind.Flag = Flag
 
@@ -3805,7 +3815,7 @@ function Library:AddKeybind(Module, Config)
 
     function Keybind:SetKey(KeyCode)
         CurrentKey = KeyCode
-        Library.Flags[Flag] = CurrentKey
+        Library:SetFlagValue(Flag, CurrentKey)
         UpdateLabel()
         task.spawn(OnChange, CurrentKey)
     end
@@ -4018,7 +4028,7 @@ function Library:AddColorPicker(Module, Config)
         SvCursor.Position = UDim2.new(S, 0, 1 - V, 0)
         HueCursor.Position = UDim2.new(0.5, 0, 1 - H, 0)
         HexBox.Text = string.format("%02X%02X%02X", math.floor(Color.R*255+0.5), math.floor(Color.G*255+0.5), math.floor(Color.B*255+0.5))
-        Library.Flags[Flag] = Color
+        Library:SetFlagValue(Flag, Color)
         task.spawn(OnChange, Color)
     end
 
@@ -4311,9 +4321,9 @@ function Library:AddSlider(Module, Config)
         CurrentValue = RoundValue(Value)
         if DualHandle then
             CurrentValue = math.max(CurrentValue, CurrentMinimum)
-            Library.Flags[Flag] = {Min = CurrentMinimum, Max = CurrentValue}
+            Library:SetFlagValue(Flag, {Min = CurrentMinimum, Max = CurrentValue})
         else
-            Library.Flags[Flag] = CurrentValue
+            Library:SetFlagValue(Flag, CurrentValue)
     Library.Defaults[Flag] = Default
         end
         UpdateVisual()
@@ -4323,7 +4333,7 @@ function Library:AddSlider(Module, Config)
     local function SetMinimum(Value)
         CurrentMinimum = RoundValue(Value)
         CurrentMinimum = math.min(CurrentMinimum, CurrentValue)
-        Library.Flags[Flag] = {Min = CurrentMinimum, Max = CurrentValue}
+        Library:SetFlagValue(Flag, {Min = CurrentMinimum, Max = CurrentValue})
         UpdateVisual()
         OnChange(CurrentValue, CurrentMinimum)
     end
@@ -4527,7 +4537,7 @@ function Library:AddCarousel(Module, Config)
         ValueLabel.Text = BuildDisplayText(Values[CurrentIndex])
         ChildrenContainer.Visible = IsExpanded and CurrentOptionHasChildren()
         RefreshVisibleOptionContainer()
-        Library.Flags[Flag] = Values[CurrentIndex]
+        Library:SetFlagValue(Flag, Values[CurrentIndex])
         OnChange(Values[CurrentIndex], CurrentIndex)
     end)
 
@@ -4553,7 +4563,7 @@ function Library:AddCarousel(Module, Config)
             ValueLabel.Text = BuildDisplayText(Values[CurrentIndex])
             ChildrenContainer.Visible = IsExpanded and CurrentOptionHasChildren()
             RefreshVisibleOptionContainer()
-            Library.Flags[Flag] = Values[CurrentIndex]
+            Library:SetFlagValue(Flag, Values[CurrentIndex])
             OnChange(Values[CurrentIndex], CurrentIndex)
         end
     end
@@ -4655,7 +4665,7 @@ function Library:AddTextBox(Module, Config)
     self:TrackTheme(InputStroke, "Color", "Text")
 
     local function ApplyText()
-Library.Flags[Flag] = Input.Text
+    Library:SetFlagValue(Flag, Input.Text)
     Library.Defaults[Flag] = Default
     task.spawn(OnChange, Input.Text)
     end
@@ -4859,7 +4869,7 @@ function Library:AddDropdown(Module, Config)
     local LastOnChangeValue = nil
 
     local function UpdateFlag()
-        Library.Flags[Flag] = CurrentValue
+        Library:SetFlagValue(Flag, CurrentValue)
         Library.Defaults[Flag] = Default
         -- Only fire OnChange when the value actually changed. Rebuilding the
         -- same options (e.g. ConfigSystem's profile list refresh) previously
@@ -5330,7 +5340,7 @@ function Library:AddProgress(Module, Config)
 
     function Progress:SetValue(Value)
         CurrentValue = Value or 0
-        Library.Flags[Flag] = CurrentValue
+        Library:SetFlagValue(Flag, CurrentValue)
         UpdateVisual()
     end
 
@@ -5393,7 +5403,7 @@ function Library:AddDropdownMultiSelect(Module, Config)
     end
 
     local function UpdateFlag()
-        Library.Flags[Flag] = GetSelected()
+        Library:SetFlagValue(Flag, GetSelected())
         OnChange(GetSelected())
     end
 
@@ -5439,7 +5449,7 @@ function Library:AddDropdownMultiSelect(Module, Config)
     CountLabel.Parent = Header
     self:TrackTheme(CountLabel, "TextColor3", "Text")
 
-    -- Arrow button — two properly sized bars forming a V chevron
+    -- Arrow button - two properly sized bars forming a V chevron
     local Arrow = Instance.new("TextButton")
     Arrow.Size = UDim2.new(0, 20, 0, 20)
     Arrow.AnchorPoint = Vector2.new(1, 0.5)
@@ -5818,7 +5828,7 @@ end
 
 ConfigsTab:AddConfig(ConfigSystem)
 
--- (Removed hardcoded RightControl/RightShift toggle — handled by the Keybind system)
+-- (Removed hardcoded RightControl/RightShift toggle - handled by the Keybind system)
 
 EnsureGuis()
 
@@ -5852,7 +5862,7 @@ local function SetState(State)
 
         -- Unlock the pointer without placing a full-screen Modal GuiButton over
         -- the game. The window's own controls still receive input, while clicks,
-        -- keybinds, and right-mouse camera movement outside it reach the game.
+        -- keybinds and right-mouse camera movement outside it reach the game.
         UserInputService.MouseBehavior = Enum.MouseBehavior.Default
         -- Do NOT hide MouseIconEnabled; custom dot renders on top
 
