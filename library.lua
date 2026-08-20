@@ -5825,14 +5825,6 @@ EnsureGuis()
 local PreviousMouseBehavior = UserInputService.MouseBehavior
 local PreviousMouseIconEnabled = UserInputService.MouseIconEnabled
 
-local ModalButton = Instance.new("TextButton")
-ModalButton.Size = UDim2.fromScale(1, 1)
-ModalButton.BackgroundTransparency = 1
-ModalButton.Text = ""
-ModalButton.ZIndex = 0
-ModalButton.AutoButtonColor = false
-ModalButton.Parent = ScreenGuis.MouseUnlockerUI
-
 local Cursor = Instance.new("Frame")
 Cursor.Size = UDim2.fromOffset(12, 12)
 Cursor.BackgroundTransparency = 0
@@ -5858,17 +5850,14 @@ local function SetState(State)
 
         ScreenGuis.MouseUnlockerUI.Enabled = true
 
-        ModalButton.Active = true
-        ModalButton.Modal = true
-
+        -- Unlock the pointer without placing a full-screen Modal GuiButton over
+        -- the game. The window's own controls still receive input, while clicks,
+        -- keybinds, and right-mouse camera movement outside it reach the game.
         UserInputService.MouseBehavior = Enum.MouseBehavior.Default
         -- Do NOT hide MouseIconEnabled; custom dot renders on top
 
         Cursor.Visible = true
     else
-        ModalButton.Modal = false
-        ModalButton.Active = false
-
         task.defer(function()
             ScreenGuis.MouseUnlockerUI.Enabled = false
             UserInputService.MouseBehavior = PreviousMouseBehavior
