@@ -3139,7 +3139,8 @@ function Library:AddConfig(Tab, ConfigSystem)
             Library.CurrentConfig = CleanName
             Input.Text = CleanName
             UpdateLoadedVisuals()
-            ConfigSystem:Load(CleanName)
+            LastProfileValue = CleanName
+            ConfigSystem:SwitchProfile(CleanName)
         end)
 
         Copy.MouseButton1Click:Connect(function()
@@ -3158,39 +3159,21 @@ function Library:AddConfig(Tab, ConfigSystem)
 
             ConfigSystem:Delete(CleanName)
 
-            if ConfigSystem:GetAutoLoad() == CleanName then
-                ConfigSystem:SetAutoLoad("")
-                Library.LoadConfig = nil
-            end
-
-            if Library.CurrentConfig == CleanName then
-                Library.CurrentConfig = nil
-            end
-
             Refresh()
         end)
 
         Auto.MouseButton1Click:Connect(function()
             Spin(Auto)
 
-            local Current = ConfigSystem:GetAutoLoad()
-
-            if Current == CleanName then
-                ConfigSystem:SetAutoLoad("")
-                Library.LoadConfig = nil
-            else
-                ConfigSystem:SetAutoLoad(CleanName)
-                Library.LoadConfig = CleanName
-                Library.CurrentConfig = CleanName
-                Input.Text = CleanName
-            end
+            ConfigSystem:SwitchProfile(CleanName)
+            LastProfileValue = CleanName
+            Library.LoadConfig = CleanName
+            Library.CurrentConfig = CleanName
+            Input.Text = CleanName
 
             UpdateAutoVisuals()
             UpdateLoadedVisuals()
 
-            if Library.LoadConfig then
-                ConfigSystem:Load(Library.LoadConfig)
-            end
         end)
     end
 
@@ -5792,6 +5775,7 @@ local ConfigsTab = Window:AddTab({
 })
 
 local ConfigSystem = ConfigSystemFactory(Library)
+Library.ConfigSystem = ConfigSystem
 
 -- Auto-save: any flag change schedules a debounced save into the active profile
 Library.OnFlagChanged = function(Flag)
