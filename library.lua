@@ -2225,9 +2225,12 @@ function Library:AddModule(Tab, Config)
         if self.Enabled == State then return end
         self.Enabled = State
 
-        Library:SetFlagValue(self.Flag, State)
-
+        -- Visuals first: flag listeners may run long-running game logic
+        -- synchronously inside the flag write below; the header must react
+        -- to clicks instantly regardless of what those listeners do.
         UpdateVisual()
+
+        Library:SetFlagValue(self.Flag, State)
 
         if State then
             if Config.OnEnabled then
