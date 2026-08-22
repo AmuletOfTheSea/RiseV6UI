@@ -2196,14 +2196,28 @@ function Library:AddModule(Tab, Config)
         Library:Untrack(Label, "TextColor3")
         Library:Untrack(ToggleIndicator, "BackgroundColor3")
 
+        local AccentColor = self:GetAccent("Accent")
+        local TextColor = self:GetTheme("Text")
+
+        -- Property writes are performed by engine-side tweens. Direct writes
+        -- from SetEnabled's calling thread throw 'lacking capability Plugin'
+        -- on some executors and silently break every module state change.
+        pcall(function()
+            TweenService:Create(Label, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                TextColor3 = Module.Enabled and AccentColor or TextColor
+            }):Play()
+
+            TweenService:Create(ToggleIndicator, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                BackgroundColor3 = Module.Enabled and AccentColor or Color3.fromRGB(255, 255, 255),
+                BackgroundTransparency = Module.Enabled and 0 or 0.75
+            }):Play()
+        end)
+
         if Module.Enabled then
             Library:TrackAccent(Label, "TextColor3", "Accent")
             Library:TrackAccent(ToggleIndicator, "BackgroundColor3", "Accent")
-            ToggleIndicator.BackgroundTransparency = 0
         else
             Library:TrackTheme(Label, "TextColor3", "Text")
-            ToggleIndicator.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-            ToggleIndicator.BackgroundTransparency = 0.75
         end
     end
 
