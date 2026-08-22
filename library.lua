@@ -2158,6 +2158,22 @@ function Library:AddModule(Tab, Config)
     Padding.PaddingLeft = UDim.new(0, 10)
     Padding.Parent = Label
 
+    -- Explicit on/off indicator: filled accent dot when the module is running,
+    -- dim dot when off. Driven directly from Module.Enabled in UpdateVisual
+    -- so it can never desync from the real state.
+    local ToggleIndicator = Instance.new("Frame")
+    ToggleIndicator.Size = UDim2.fromOffset(10, 10)
+    ToggleIndicator.AnchorPoint = Vector2.new(1, 0.5)
+    ToggleIndicator.Position = UDim2.new(1, -14, 0.5, 0)
+    ToggleIndicator.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    ToggleIndicator.BackgroundTransparency = 0.75
+    ToggleIndicator.BorderSizePixel = 0
+    ToggleIndicator.Parent = Button
+
+    local IndicatorCorner = Instance.new("UICorner")
+    IndicatorCorner.CornerRadius = UDim.new(1, 0)
+    IndicatorCorner.Parent = ToggleIndicator
+
     local Container = Instance.new("Frame")
     Container.Size = UDim2.new(1, -8, 0, 0)
     Container.Position = UDim2.new(0, 0, 0, 32)
@@ -2178,11 +2194,16 @@ function Library:AddModule(Tab, Config)
 
     local function UpdateVisual()
         Library:Untrack(Label, "TextColor3")
+        Library:Untrack(ToggleIndicator, "BackgroundColor3")
 
         if Module.Enabled then
             Library:TrackAccent(Label, "TextColor3", "Accent")
+            Library:TrackAccent(ToggleIndicator, "BackgroundColor3", "Accent")
+            ToggleIndicator.BackgroundTransparency = 0
         else
             Library:TrackTheme(Label, "TextColor3", "Text")
+            ToggleIndicator.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+            ToggleIndicator.BackgroundTransparency = 0.75
         end
     end
 
