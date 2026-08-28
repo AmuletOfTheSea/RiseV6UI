@@ -1331,8 +1331,19 @@ function Library:AddToolTip(Host, Config)
 
     local Icon = Instance.new("TextButton")
     Icon.Name = "ToolTipIcon"
-    Icon.AnchorPoint = Vector2.new(1, 0.5)
-    Icon.Position = UDim2.new(1, -8, 0.5, 0)
+    if Host:IsA("TextLabel") and Host.TextXAlignment == Enum.TextXAlignment.Left then
+        Icon.AnchorPoint = Vector2.new(0, 0.5)
+
+        local function PositionAfterText()
+            Icon.Position = UDim2.new(0, math.ceil(Host.TextBounds.X) + 6, 0.5, 0)
+        end
+
+        PositionAfterText()
+        Host:GetPropertyChangedSignal("TextBounds"):Connect(PositionAfterText)
+    else
+        Icon.AnchorPoint = Vector2.new(1, 0.5)
+        Icon.Position = UDim2.new(1, -8, 0.5, 0)
+    end
     Icon.Size = UDim2.fromOffset(16, 16)
     Icon.BackgroundTransparency = 0.78
     Icon.BorderSizePixel = 0
